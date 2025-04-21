@@ -1,0 +1,17 @@
+[project]
+name = "genai4humanities"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "f5-tts>=1.1.0",
+    "ipykernel>=6.29.5",
+    "jupytext>=1.17.0",
+    "openai>=1.71.0",
+    "python-dotenv>=1.1.0",
+    "requests>=2.32.3",
+]
+
+[tool.uv.workspace]
+members = ["week10"]

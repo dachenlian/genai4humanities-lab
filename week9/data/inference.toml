@@ -1,0 +1,16 @@
+model = "F5TTS_v1_Base"
+ref_audio = "data/trump.wav"
+# If an empty "", transcribes the reference audio automatically.
+ref_text = "We must be united at home to defeat our adversaries abroad. This new era of cooperation can start"
+gen_text = """\
+Good morning! Welcome everyone to the AI Science Popularization Salon, hosted by the National Taiwan University Science Education Center.
+Oh, 我看我還是說中文好了。我的老朋友謝舒凱教授要跟大家分享人類與機器的溝通問題。雖然他不太喜歡我，但是我還是祝他演講順利。
+大家再見，let's make Taiwan great again!!!\
+"""
+# File with text to generate. Ignores the text above.
+gen_file = ""
+remove_silence = true
+output_dir = "data"
+output_file = "trump-ai-science-pop-salon.wav"
+device = "cuda"
+nfe_step = 64
