@@ -10,6 +10,10 @@
     "backgrounds": "Softly detailed, slightly whimsical settings (cozy cottage, lush green forest edge, rustic village shops, sunny meadow)."
   },
   "pages": {
+    "cover": {
+      "image_prompt": "Generate a children's book cover image in a warm, friendly, cartoon style with soft edges, bright cheerful colors, and a watercolor texture effect, using the defined character designs (cute kids, cunning wolf). The scene is an exterior view of a cozy, slightly whimsical cottage nestled at the edge of a softly detailed forest under a bright, sunny day atmosphere. Focus on seven cute, fluffy little goat kids playfully crowded together, peeking curiously (some slightly nervously) out of the main cottage window with engaging expressions. Subtly include the Wolf (cunning but not overly scary) partially hidden behind a large tree trunk or bushes in the nearby forest background, looking slyly towards the cottage. The atmosphere should be primarily inviting, warm, and colorful, suitable for a children's book cover, but with a gentle hint of fairy tale suspense. Ensure the cottage and peeking kids are the main focus, leaving ample clear space (e.g., across the top or bottom third) for the title text '大野狼與七隻小羊'.",
+      "text": ""
+    },
     "1": {
       "image_prompt": "Style: [Use Defined Style Guide]. Full page illustration. Interior of a cozy, slightly messy cottage. Mother Goat (kind, wearing apron) stands surrounded by her seven small, cute goat kids. She looks concerned, gesturing warningly towards the door/window (off-panel). The kids look attentive, some slightly worried. Atmosphere: Cozy, loving, with a hint of warning.",
       "text": "從前從前，有羊媽媽和七隻小羊。\n媽媽要去森林，叮嚀孩子們：「要小心大野狼！牠聲音粗啞，腳是黑色的！」\n\n沒多久，叩叩叩！\n一個粗啞的聲音說：「開門啊，媽媽回來了！」\n小羊們大叫：「不開！你是大野狼！」"
