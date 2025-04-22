@@ -1,5 +1,7 @@
 import functools
+from typing import TypedDict
 
+import numpy.typing as npt
 import torch
 from transformers import (  # Hugging Face 函式庫
     AutomaticSpeechRecognitionPipeline,
@@ -9,7 +11,7 @@ from transformers import (  # Hugging Face 函式庫
 
 
 @functools.cache
-def prepare_whisper_model(
+def _prepare_whisper_model(
     device: torch.device, model_id: str = "openai/whisper-large-v3-turbo"
 ) -> AutomaticSpeechRecognitionPipeline:
     """載入並設定 Whisper S2T 模型 pipeline。"""
@@ -34,3 +36,25 @@ def prepare_whisper_model(
     )
     print("Whisper 模型載入完成。")
     return pipe
+
+
+class ASRDictInput(TypedDict):
+    sampling_rate: int
+    raw: npt.NDArray
+
+
+def asr(
+    inputs: str | npt.NDArray | bytes,
+    device: torch.device,
+    *args,
+    **kwargs,
+) -> str:
+    """處理音頻並返回轉錄文本。"""
+    model = _prepare_whisper_model(device)
+    transcription = model(inputs, *args, **kwargs)
+
+    # Handle different return types from the model
+    if isinstance(transcription, dict) and "text" in transcription:
+        return transcription["text"]
+    else:
+        return str(transcription)
