@@ -28,19 +28,20 @@ with gr.Blocks(theme=gr.themes.Citrus()) as demo:
         choices=[(k.title(), k) for k in pages.keys()],
         interactive=True,
     )
-    page_text = gr.Textbox(
-        label="Text",
-        lines=5,
-        interactive=False,
-        placeholder="Select a page to see the text.",
-    )
-    page_img = gr.Image(
-        label="Image",
-        type="filepath",
-        interactive=False,
-        show_label=True,
-        height=600,
-    )
+    with gr.Row(equal_height=True):
+        page_text = gr.Textbox(
+            label="Text",
+            lines=20,
+            interactive=False,
+            placeholder="Select a page to see the text.",
+        )
+        page_img = gr.Image(
+            label="Image",
+            type="filepath",
+            interactive=False,
+            show_label=True,
+            height=500,
+        )
 
     @page_radio.change(inputs=page_radio, outputs=[page_text, page_img])
     def show_page_content(choice):
