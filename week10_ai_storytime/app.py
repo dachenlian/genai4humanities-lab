@@ -17,7 +17,11 @@ def load_story_data():
 story = load_story_data()
 pages = story["pages"]
 
+selected_image = None
+selected_text = None
+
 with gr.Blocks(theme=gr.themes.Citrus()) as demo:
+    # TODO: allow user upload of data (json with text and img paths; images in img folder)
     gr.Markdown(f"# {title if (title := story['title']) else 'Untitled'}")
     page_radio = gr.Radio(
         label="Page",
@@ -40,10 +44,14 @@ with gr.Blocks(theme=gr.themes.Citrus()) as demo:
 
     @page_radio.change(inputs=page_radio, outputs=[page_text, page_img])
     def show_page_content(choice):
+        global selected_text, selected_image
         page = pages[choice]
         text = page["text"]
         img_name = page["img"]
         img_path = IMG_DIR / img_name
+        selected_text = text
+
+        selected_image = img_path
         return text, img_path
 
 
