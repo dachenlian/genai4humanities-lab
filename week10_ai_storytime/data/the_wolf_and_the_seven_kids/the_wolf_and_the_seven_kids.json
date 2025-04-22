@@ -1,34 +1,46 @@
 {
-  "1": {
-    "image_prompt": "Style: [Defined Style]. Full page illustration. Interior of a cozy, slightly messy cottage. Mother Goat (kind, wearing apron) stands surrounded by her seven small, cute goat kids. She looks concerned, gesturing warningly towards the door/window (off-panel). The kids look attentive, some slightly worried. Atmosphere: Cozy, loving, with a hint of warning.",
-    "text": "從前從前，有羊媽媽和七隻小羊。\n媽媽要去森林，叮嚀孩子們：「要小心大野狼！牠聲音粗啞，腳是黑色的！」\n\n沒多久，叩叩叩！\n一個粗啞的聲音說：「開門啊，媽媽回來了！」\n小羊們大叫：「不開！你是大野狼！」"
+  "style_guide": {
+    "overall_style": "Warm, friendly, cartoon style with soft edges and bright, cheerful colors. Resembles classic European fairy tale illustrations but slightly more modern and simplified. Focus on expressive characters. Use a watercolor texture effect.",
+    "character_design": {
+      "mother_goat": "Kind face, wearing an apron.",
+      "little_kids": "Cute, fluffy, varied slightly in appearance (maybe one has spots, one has floppy ears).",
+      "wolf": "Cunning but slightly bumbling appearance, dark fur, sharp teeth (but not overly terrifying for children).",
+      "baker_miller": "Traditional European peasant attire."
+    },
+    "backgrounds": "Softly detailed, slightly whimsical settings (cozy cottage, lush green forest edge, rustic village shops, sunny meadow)."
   },
-  "2": {
-    "image_prompt": "Style: [Defined Style]. Full page illustration. View from inside the cottage, focusing on the window or a crack in the door. The Wolf's large, distinctly black paw is visible resting on the windowsill or pushed slightly through the door crack. On the inside, several little kids are shown recoiling in fear, pointing at the paw, emphasizing their recognition of the danger. Atmosphere: Suspenseful, fearful.",
-    "text": "大野狼吃了粉筆，又來敲門，聲音變細了。\n但牠把黑爪子放在窗邊。\n\n小羊們又叫：「不開！媽媽的腳不是黑色的！」\n\n於是大野狼去找麵包師傅和磨坊主人，把腳抹上麵糰和麵粉弄白。"
-  },
-  "3": {
-    "image_prompt": "Style: [Defined Style]. Full page illustration. Similar view as page 2, focusing on the window or door crack. This time, the Wolf's paw covered in white flour is presented. Inside, the little kids look hesitant but visibly relieved or fooled, perhaps whispering to each other. One kid is reaching towards the door latch/lock. Atmosphere: Deception, false sense of security.",
-    "text": "壞蛋第三次來敲門，伸進白色的腳。\n小羊們相信了，把門打開。"
-  },
-  "4": {
-    "image_prompt": "Style: [Defined Style]. Full page illustration. Dynamic scene inside the cottage. The door is wide open. The Wolf (cartoonishly menacing, perhaps licking its lips) stands prominently just inside. The seven kids are in mid-motion, scattering frantically in different directions – diving under a table, jumping towards a bed, running towards a large grandfather clock, etc. Furniture might be slightly askew to indicate chaos. Atmosphere: Panic, high action, chaos.",
-    "text": "結果衝進來的是大野狼！\n小羊們嚇壞了，趕快躲到桌下、床上、爐子裡、櫥櫃裡、洗臉盆下和鐘殼裡！"
-  },
-  "5": {
-    "image_prompt": "Style: [Defined Style]. Full page illustration. Peaceful outdoor scene in a sunny green meadow under a large, shady tree. The Wolf lies fast asleep, snoring (indicated by 'Zzz's or musical notes). Its belly is comically large, round, and prominent, clearly showing it has eaten a lot. Atmosphere: Deceptive peace, satiation.",
-    "text": "大野狼把躲起來的小羊一個個找出來，吞進肚子裡。\n只有躲在鐘殼裡最小的沒被找到。\n\n吃飽後，牠走到外面草地上，躺在樹下睡著了。"
-  },
-  "6": {
-    "image_prompt": "Style: [Defined Style]. Full page illustration. Interior of the messy cottage. Mother Goat stands amidst the overturned furniture, looking shocked and heartbroken. From the tall grandfather clock in the corner, the smallest little kid peeks out cautiously, looking sad but also relieved to see its mother. Atmosphere: Sadness, devastation, a glimmer of hope.",
-    "text": "羊媽媽回來，看到家裡亂七八糟，孩子都不見了，傷心地哭了起來。\n\n這時，最小的羊從鐘殼裡叫著：「媽媽，我在這裡！大野狼把哥哥姐姐們都吃掉了！」"
-  },
-  "7": {
-    "image_prompt": "Style: [Defined Style]. Full page illustration. Outdoor meadow scene, centered on the sleeping Wolf under the tree. Mother Goat is carefully cutting open the Wolf's large belly with scissors (action shown gently, not graphically). Six little goat kids are joyfully popping their heads out or jumping fully out of the opening, looking unharmed, surprised, and immensely happy. The smallest kid looks on nearby with relief. Atmosphere: Climax, rescue, joyful relief.",
-    "text": "媽媽帶著小羊找到正在打呼的大野狼，看到牠肚子裡有東西在動！\n\n媽媽趕快拿來剪刀，小心地剪開狼肚子，六隻小羊一個接一個跳了出來，全都平安無事！"
-  },
-  "8": {
-    "image_prompt": "Style: [Defined Style]. Full page illustration. Scene focused on an old stone well in the meadow. The Wolf is depicted mid-fall, tumbling headfirst into the well with a large splash. Its belly looks heavy and round (implying stones). Nearby, perhaps slightly in the foreground or background, Mother Goat and the seven little kids are dancing joyfully in a circle around the well, celebrating. Atmosphere: Justice, climax resolution, pure joy, celebration.",
-    "text": "牠們高興地抱著媽媽。\n媽媽說：「快去找些大石頭來！」\n小羊們把石頭塞滿大野狼的肚子，媽媽再趕快把牠的肚子縫起來。\n\n大野狼醒來覺得好渴，走到井邊彎腰喝水時，重重的石頭讓牠一頭栽進井裡淹死了！\n\n七隻小羊看到了，高興地跑來大叫：「大野狼死了！」\n牠們和媽媽一起圍著水井，開心地跳起舞來。"
+  "pages": {
+    "1": {
+      "image_prompt": "Style: [Use Defined Style Guide]. Full page illustration. Interior of a cozy, slightly messy cottage. Mother Goat (kind, wearing apron) stands surrounded by her seven small, cute goat kids. She looks concerned, gesturing warningly towards the door/window (off-panel). The kids look attentive, some slightly worried. Atmosphere: Cozy, loving, with a hint of warning.",
+      "text_mandarin": "從前從前，有羊媽媽和七隻小羊。\n媽媽要去森林，叮嚀孩子們：「要小心大野狼！牠聲音粗啞，腳是黑色的！」\n\n沒多久，叩叩叩！\n一個粗啞的聲音說：「開門啊，媽媽回來了！」\n小羊們大叫：「不開！你是大野狼！」"
+    },
+    "2": {
+      "image_prompt": "Style: [Use Defined Style Guide]. Full page illustration. View from inside the cottage, focusing on the window or a crack in the door. The Wolf's large, distinctly black paw is visible resting on the windowsill or pushed slightly through the door crack. On the inside, several little kids are shown recoiling in fear, pointing at the paw, emphasizing their recognition of the danger. Atmosphere: Suspenseful, fearful.",
+      "text_mandarin": "大野狼吃了粉筆，又來敲門，聲音變細了。\n但牠把黑爪子放在窗邊。\n\n小羊們又叫：「不開！媽媽的腳不是黑色的！」\n\n於是大野狼去找麵包師傅和磨坊主人，把腳抹上麵糰和麵粉弄白。"
+    },
+    "3": {
+      "image_prompt": "Style: [Use Defined Style Guide]. Full page illustration. Similar view as page 2, focusing on the window or door crack. This time, the Wolf's paw covered in white flour is presented. Inside, the little kids look hesitant but visibly relieved or fooled, perhaps whispering to each other. One kid is reaching towards the door latch/lock. Atmosphere: Deception, false sense of security.",
+      "text_mandarin": "壞蛋第三次來敲門，伸進白色的腳。\n小羊們相信了，把門打開。"
+    },
+    "4": {
+      "image_prompt": "Style: [Use Defined Style Guide]. Full page illustration. Dynamic scene inside the cottage. The door is wide open. The Wolf (cartoonishly menacing, perhaps licking its lips) stands prominently just inside. The seven kids are in mid-motion, scattering frantically in different directions – diving under a table, jumping towards a bed, running towards a large grandfather clock, etc. Furniture might be slightly askew to indicate chaos. Atmosphere: Panic, high action, chaos.",
+      "text_mandarin": "結果衝進來的是大野狼！\n小羊們嚇壞了，趕快躲到桌下、床上、爐子裡、櫥櫃裡、洗臉盆下和鐘殼裡！"
+    },
+    "5": {
+      "image_prompt": "Style: [Use Defined Style Guide]. Full page illustration. Peaceful outdoor scene in a sunny green meadow under a large, shady tree. The Wolf lies fast asleep, snoring (indicated by 'Zzz's or musical notes). Its belly is comically large, round, and prominent, clearly showing it has eaten a lot. Atmosphere: Deceptive peace, satiation.",
+      "text_mandarin": "大野狼把躲起來的小羊一個個找出來，吞進肚子裡。\n只有躲在鐘殼裡最小的沒被找到。\n\n吃飽後，牠走到外面草地上，躺在樹下睡著了。"
+    },
+    "6": {
+      "image_prompt": "Style: [Use Defined Style Guide]. Full page illustration. Interior of the messy cottage. Mother Goat stands amidst the overturned furniture, looking shocked and heartbroken. From the tall grandfather clock in the corner, the smallest little kid peeks out cautiously, looking sad but also relieved to see its mother. Atmosphere: Sadness, devastation, a glimmer of hope.",
+      "text_mandarin": "羊媽媽回來，看到家裡亂七八糟，孩子都不見了，傷心地哭了起來。\n\n這時，最小的羊從鐘殼裡叫著：「媽媽，我在這裡！大野狼把哥哥姐姐們都吃掉了！」"
+    },
+    "7": {
+      "image_prompt": "Style: [Use Defined Style Guide]. Full page illustration. Outdoor meadow scene, centered on the sleeping Wolf under the tree. Mother Goat is carefully cutting open the Wolf's large belly with scissors (action shown gently, not graphically). Six little goat kids are joyfully popping their heads out or jumping fully out of the opening, looking unharmed, surprised, and immensely happy. The smallest kid looks on nearby with relief. Atmosphere: Climax, rescue, joyful relief.",
+      "text_mandarin": "媽媽帶著小羊找到正在打呼的大野狼，看到牠肚子裡有東西在動！\n\n媽媽趕快拿來剪刀，小心地剪開狼肚子，六隻小羊一個接一個跳了出來，全都平安無事！"
+    },
+    "8": {
+      "image_prompt": "Style: [Use Defined Style Guide]. Full page illustration. Scene focused on an old stone well in the meadow. The Wolf is depicted mid-fall, tumbling headfirst into the well with a large splash. Its belly looks heavy and round (implying stones). Nearby, perhaps slightly in the foreground or background, Mother Goat and the seven little kids are dancing joyfully in a circle around the well, celebrating. Atmosphere: Justice, climax resolution, pure joy, celebration.",
+      "text_mandarin": "牠們高興地抱著媽媽。\n媽媽說：「快去找些大石頭來！」\n小羊們把石頭塞滿大野狼的肚子，媽媽再趕快把牠的肚子縫起來。\n\n大野狼醒來覺得好渴，走到井邊彎腰喝水時，重重的石頭讓牠一頭栽進井裡淹死了！\n\n七隻小羊看到了，高興地跑來大叫：「大野狼死了！」\n牠們和媽媽一起圍著水井，開心地跳起舞來。"
+    }
   }
 }
