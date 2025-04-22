@@ -63,7 +63,7 @@ def get_gemini_api_key() -> str:
     3. Environment variables (optionally loaded from .env file)
 
     Raises:
-        ImportError: If the GEMINI_API_KEY cannot be found in any source.
+        ValueError: If the GEMINI_API_KEY cannot be found in any source.
 
     Returns:
         The found GEMINI_API_KEY.
