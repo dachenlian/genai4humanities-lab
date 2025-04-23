@@ -3,11 +3,16 @@ from pathlib import Path
 import gradio as gr
 from google import genai
 from PIL import Image
+import numpy as np
+import torch
+from transformers import pipeline
 
+# from ai_storytime.asr import asr
 from ai_storytime.tts import tts
 from ai_storytime.models import Story
 from ai_storytime.utils import get_gemini_api_key
 
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 story_name = "story"
 MODEL_ID = "gemini-2.0-flash"
 DATA_DIR = Path(__file__).parent / "data"
@@ -168,7 +173,53 @@ with gr.Blocks(
 
         # msg.submit(respond, [msg, chatbot], [msg, chatbot], queue=False)
     with gr.Tab(label="Voice Chat"):
-        pass
+        transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-large-v3-turbo", device=DEVICE)
+
+        def transcribe(stream, new_chunk):
+            sr, y = new_chunk
+            
+            # Convert to mono if stereo
+            if y.ndim > 1:
+                y = y.mean(axis=1)
+                
+            y = y.astype(np.float32)
+            y /= np.max(np.abs(y))
+
+            if stream is not None:
+                stream = np.concatenate([stream, y])
+            else:
+                stream = y
+            
+            # result = asr(device=DEVICE, **{"sampling_rate": sr, "raw": stream})
+            # return stream, result.get("text", "")  # Use get() to safely access text field
+            return stream, transcriber({"sampling_rate": sr, "raw": stream})["text"]
+        
+        with gr.Row():
+            with gr.Column():
+                # Define Input Components
+                audio_in = gr.Audio(sources=["microphone"], type="numpy", streaming=True) 
+                # Note: streaming might require .stream() event listener instead of button.click()
+                # For simplicity, let's assume a button trigger for now
+                submit_button = gr.Button("Transcribe")
+            
+            with gr.Column():
+                # Define Output Components
+                text_out = gr.Textbox(label="Transcription")
+
+        # Define the interaction logic using event listeners
+        submit_button.click(
+            fn=my_function,          # Your processing function
+            inputs=[audio_in, app_state],  # Map components/state to function args
+            outputs=[app_state, text_out] # Map function return values to components/state
+        )
+        
+        # If using streaming audio input like the previous example:
+        # audio_in.stream(
+        #     fn=my_function, 
+        #     inputs=[app_state, audio_in], # Order matters for function args
+        #     outputs=[app_state, text_out]
+        # )
+
 
     with gr.Row(equal_height=True):
         page_text = gr.Markdown(
