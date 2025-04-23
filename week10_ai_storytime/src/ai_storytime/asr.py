@@ -44,14 +44,13 @@ class ASRDictInput(TypedDict):
 
 
 def asr(
-    inputs: str | npt.NDArray | bytes,
     device: torch.device,
     *args,
     **kwargs,
 ) -> str:
     """處理音頻並返回轉錄文本。"""
     model = _prepare_whisper_model(device)
-    transcription = model(inputs, *args, **kwargs)
+    transcription = model(*args, **kwargs)
 
     # Handle different return types from the model
     if isinstance(transcription, dict) and "text" in transcription:
