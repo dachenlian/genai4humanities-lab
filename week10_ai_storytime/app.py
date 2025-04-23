@@ -4,6 +4,7 @@ import gradio as gr
 from google import genai
 from PIL import Image
 
+from ai_storytime.tts import tts
 from ai_storytime.models import Story
 from ai_storytime.utils import get_gemini_api_key
 

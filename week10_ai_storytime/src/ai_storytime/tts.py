@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 
-def speak(
+def tts(
     path_to_ref_audio: str,
     gen_text: str,
     ref_text: str = "",  # 參考音檔的文字稿 (選填，但建議提供)
