@@ -8,6 +8,7 @@ dependencies = [
     "f5-tts>=1.1.0",
     "google-genai>=1.11.0",
     "gradio>=5.14.0",
+    "hf-transfer>=0.1.9",
     "ipykernel>=6.29.5",
     "ipywidgets>=8.1.6",
     "pydantic>=2.10.6",
