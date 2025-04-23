@@ -1,6 +1,5 @@
 import importlib.util
 import os
-from typing import Optional
 
 
 # Helper function to check if a module can be imported
@@ -13,7 +12,7 @@ def _is_module_available(module_name: str) -> bool:
 # --- Key Retrieval Strategies ---
 
 
-def _get_from_colab() -> Optional[str]:
+def _get_from_colab() -> str | None:
     """Tries to get the API key from Google Colab userdata."""
     if _is_module_available("google.colab"):
         from google.colab import userdata  # type: ignore
@@ -22,7 +21,7 @@ def _get_from_colab() -> Optional[str]:
     return None
 
 
-def _get_from_kaggle() -> Optional[str]:
+def _get_from_kaggle() -> str | None:
     """Tries to get the API key from Kaggle secrets."""
     if _is_module_available("kaggle_secrets"):
         try:
@@ -38,7 +37,7 @@ def _get_from_kaggle() -> Optional[str]:
     return None
 
 
-def _get_from_env() -> Optional[str]:
+def _get_from_env() -> str | None:
     """Tries to get the API key from environment variables (optionally using python-dotenv)."""
     if _is_module_available("dotenv"):
         try:
@@ -75,7 +74,7 @@ def get_gemini_api_key() -> str:
         _get_from_env,
     ]
 
-    api_key: Optional[str] = None
+    api_key: str | None = None
     for strategy in strategies:
         try:
             key = strategy()
