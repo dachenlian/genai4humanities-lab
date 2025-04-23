@@ -1,3 +1,4 @@
+import zipfile
 from pathlib import Path
 
 import gradio as gr
@@ -5,6 +6,7 @@ import numpy as np
 import torch
 from google import genai
 from PIL import Image
+from rich import print as rprint
 
 # from ai_storytime.asr import asr
 from ai_storytime.models import ChatMessage, Story
@@ -30,39 +32,101 @@ ALL_TEXT_IMG: list[Image.Image | str] = []
 
 client = None
 CHAT = None
+story = None
+pages = None
 
 
-def load_story_data() -> Story:
-    global ALL_TEXT_IMG
-    with open(STORY_DIR / f"{story_name}.json", "r", encoding="utf-8") as file:
+def load_story_data():
+    global ALL_TEXT_IMG, story, pages
+
+    with open(STORY_DIR / "story.json", "r", encoding="utf-8") as file:
         story = Story.model_validate_json(file.read())
+    pages = story.pages
 
     ALL_TEXT_IMG = story.gather_text_and_images(IMG_DIR)
-    return story
 
 
-story = load_story_data()
-pages = story.pages
+# load_story_data()  # load default story
+
 
 selected_image = None
 selected_text = None
 selected_choice = None
 past_choices = set()
 
+
+def handle_upload(filepath):
+    global story_name, STORY_DIR, IMG_DIR, story, pages, ALL_TEXT_IMG
+    story_name = "uploads"
+    STORY_DIR = DATA_DIR / story_name
+    IMG_DIR = STORY_DIR / "img"
+
+    # Unzip the uploaded file
+    with zipfile.ZipFile(filepath, "r") as zip_ref:
+        zip_ref.extractall(STORY_DIR)
+
+    files = list(STORY_DIR.glob("*"))
+    rprint(f"Uploaded files: {files}")
+
+    # Load the story data
+    load_story_data()
+
+    # Generate updated radio choices
+    new_choices = [("全部", "all")]
+    if pages is not None:
+        new_choices = [(k.title(), k) for k in pages.keys()] + [("全部", "all")]
+    else:
+        new_choices = []
+
+    page_radio = gr.Radio(
+        label="Page",
+        choices=new_choices,
+        interactive=True,
+    )
+
+    # Return the new story title and radio choices
+    story_title = f"# {story.title if story else 'Story Title'}"
+    return story_title, page_radio
+
+
 with gr.Blocks(
     theme=gr.themes.Citrus()  # type: ignore
 ) as demo:
     local_storage = gr.BrowserState([DEFAULT_API_KEY])
     with gr.Sidebar():
-        api_key = gr.Textbox(
-            label="Gemini API Key",
-            placeholder="請輸入您的 Gemini API 金鑰",
-            type="password",
-            show_label=True,
-            lines=1,
-            interactive=True,
-            elem_id="api_key",
-        )
+        with gr.Row():
+            with gr.Column():
+                api_key = gr.Textbox(
+                    label="Gemini API Key",
+                    placeholder="請輸入您的 Gemini API 金鑰",
+                    type="password",
+                    show_label=True,
+                    lines=1,
+                    interactive=True,
+                    elem_id="api_key",
+                )
+                upload_button = gr.UploadButton(
+                    "上傳故事檔案",
+                    file_types=[".zip"],
+                    file_count="single",
+                )
+
+    story_title_md = gr.Markdown(f"# {story.title if story else 'Story Title'}")
+    choices = [("全部", "all")]
+    if pages is not None:
+        choices = [(k.title(), k) for k in pages.keys()] + [("全部", "all")]
+    else:
+        choices = []
+    page_radio = gr.Radio(
+        label="Page",
+        choices=choices,
+        interactive=True,
+    )
+
+    # Update the upload button to connect to the outputs
+    upload_button.upload(
+        handle_upload, inputs=upload_button, outputs=[story_title_md, page_radio]
+    )
 
     @demo.load(inputs=[local_storage], outputs=[api_key])
     def load_from_local_storage(saved_values):
@@ -89,17 +153,9 @@ with gr.Blocks(
         )
         return [password]
 
-    # TODO: allow user upload of data (json with text and img paths; images in img folder)
-    gr.Markdown(f"# {story.title}")
-    page_radio = gr.Radio(
-        label="Page",
-        choices=[(k.title(), k) for k in pages.keys()] + [("全部", "all")],
-        interactive=True,
-    )
-
     # --- Helper function to initialize client and chat ---
     # (Can be defined globally or passed around if needed)
-    def prepare_chat(current_api_key):
+    def prepare_chat(current_api_key: str):
         global CHAT, client
         # Ensure API key component is accessible here
         if not current_api_key:
@@ -411,14 +467,17 @@ with gr.Blocks(
             # Maybe clear chat history when changing pages? Or keep context?
             # global CHAT; CHAT = None # Example: Reset chat on page change
             return (
-                "Displaying all pages context for chat.",
+                "輸入整個故事的內容和圖給模型參考",
                 None,
             )  # Display placeholder text/image
 
         page = pages[choice]
-        text_content = page.text.replace(
-            "\n", "\n\n"
-        )  # Add double newline for Markdown paragraphs
+        # text_content = page.text.replace(
+        #     "\n", "\n\n"
+        # )  # Add double newline for Markdown paragraphs
+        text_content = page.text.split("\n")
+        text_content = [f"# {line}" for line in text_content]
+        text_content = "\n".join(text_content)
 
         img_name = page.img
         img_path = None
