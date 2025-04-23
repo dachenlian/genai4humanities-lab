@@ -278,3 +278,10 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/python,visualstudiocode,linux,windows,macos
+
+# Gradio run artifacts
+*.db
+*.sqlite3
+gradio/launches.json
+gradio/hash_seed.txt
+.gradio/
