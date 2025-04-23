@@ -80,6 +80,7 @@ def get_gemini_api_key() -> str:
             key = strategy()
             if key:  # Check if key is not None and not an empty string
                 api_key = key
+                print(f"Found GEMINI_API_KEY using strategy: {strategy.__name__}")
                 break  # Key found, stop searching
         except Exception:
             # Log or print a warning if needed, e.g., about Kaggle get_secret failure
