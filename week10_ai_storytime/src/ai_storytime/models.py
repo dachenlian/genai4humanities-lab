@@ -1,5 +1,5 @@
 from pathlib import Path
-from collections.abc import Sequence
+from typing import TypedDict
 
 from PIL import Image
 from pydantic import BaseModel, Field
@@ -34,3 +34,8 @@ class Story(BaseModel):
             if page.text:
                 out.append(page.text)
         return out
+
+
+class ChatMessage(TypedDict):
+    role: str
+    content: str
