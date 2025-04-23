@@ -36,6 +36,7 @@ dependencies = [
     { name = "ipywidgets" },
     { name = "pydantic" },
     { name = "python-dotenv" },
+    { name = "rprint" },
     { name = "torch" },
     { name = "transformers" },
 ]
@@ -49,6 +50,7 @@ requires-dist = [
     { name = "ipywidgets", specifier = ">=8.1.6" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
+    { name = "rprint", specifier = ">=0.0.8" },
     { name = "torch", specifier = ">=2.6.0" },
     { name = "transformers", specifier = ">=4.50.3" },
 ]
@@ -2070,6 +2072,14 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ab/3a/0316b28d0761c6734d6bc14e770d85506c986c85ffb239e688eeaab2c2bc/rich-13.9.4.tar.gz", hash = "sha256:439594978a49a09530cff7ebc4b5c7103ef57baf48d5ea3184f21d9a2befa098", size = 223149 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/19/71/39c7c0d87f8d4e6c020a393182060eaefeeae6c01dab6a84ec346f2567df/rich-13.9.4-py3-none-any.whl", hash = "sha256:6049d5e6ec054bf2779ab3358186963bac2ea89175919d699e378b99738c2a90", size = 242424 },
+]
+
+[[package]]
+name = "rprint"
+version = "0.0.8"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/74/99c93ef0987e01b29ea9ee565f0849ea645bf1f8d83acc50ee59d7a6b0dd/rprint-0.0.8-py2.py3-none-any.whl", hash = "sha256:e444de03ef32f0cd093ea160e1999ec72207b08046a5695db6477051a816e912", size = 2695 },
 ]
 
 [[package]]
