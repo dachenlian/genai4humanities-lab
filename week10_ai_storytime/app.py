@@ -78,13 +78,14 @@ with gr.Blocks(
             print("Creating new chat")
             CHAT = client.chats.create(model=MODEL_ID)
 
-    with gr.Row():
-        chatbot = gr.Chatbot(type="messages", label="和我聊聊故事吧！")
-    with gr.Row():
-        msg = gr.Textbox()
-    with gr.Row():
-        clear = gr.ClearButton([msg, chatbot])
-        clear.click(create_new_chat, inputs=None, outputs=None)
+    with gr.Tab(label="Text Chat"):
+        with gr.Row():
+            chatbot = gr.Chatbot(type="messages", label="和我聊聊故事吧！")
+        with gr.Row():
+            msg = gr.Textbox()
+        with gr.Row():
+            clear = gr.ClearButton([msg, chatbot])
+            clear.click(create_new_chat, inputs=None, outputs=None)
 
         def user(user_mesage: str, history: list[gr.ChatMessage]):
             return "", history + [gr.ChatMessage(content=user_mesage, role="user")]
@@ -165,6 +166,8 @@ with gr.Blocks(
         #     return "", chat_history
 
         # msg.submit(respond, [msg, chatbot], [msg, chatbot], queue=False)
+    with gr.Tab(label="Voice Chat"):
+        pass
 
     with gr.Row(equal_height=True):
         page_text = gr.Markdown(
