@@ -1,19 +1,21 @@
 from pathlib import Path
 
 import gradio as gr
-from google import genai
-from PIL import Image
 import numpy as np
 import torch
-from transformers import pipeline
+from google import genai
+from PIL import Image
 
 # from ai_storytime.asr import asr
+from ai_storytime.models import ChatMessage, Story
 from ai_storytime.tts import tts
-from ai_storytime.models import Story
 from ai_storytime.utils import get_gemini_api_key
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 story_name = "story"
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {DEVICE}")
+
 MODEL_ID = "gemini-2.0-flash"
 DATA_DIR = Path(__file__).parent / "data"
 STORY_DIR = DATA_DIR / story_name
@@ -21,6 +23,10 @@ IMG_DIR = STORY_DIR / "img"
 DEFAULT_API_KEY = get_gemini_api_key()
 # DEFAULT_API_KEY = ""
 ALL_TEXT_IMG: list[Image.Image | str] = []
+
+# TRANSCRIBER = pipeline(
+#     "automatic-speech-recognition", model="openai/whisper-large-v3-turbo", device=DEVICE
+# )
 
 client = None
 CHAT = None
@@ -41,6 +47,7 @@ pages = story.pages
 selected_image = None
 selected_text = None
 selected_choice = None
+past_choices = set()
 
 with gr.Blocks(
     theme=gr.themes.Citrus()  # type: ignore
@@ -59,7 +66,19 @@ with gr.Blocks(
 
     @demo.load(inputs=[local_storage], outputs=[api_key])
     def load_from_local_storage(saved_values):
-        return saved_values[0]
+        key = saved_values[0] if saved_values and saved_values[0] else ""
+        global client, CHAT
+        if not key:
+            client = None
+            CHAT = None
+        elif (
+            client and client._api_client.api_key != key
+        ):  # Re-initialize if key changes
+            client = None
+            CHAT = None
+            print("API Key changed, client/chat will be re-initialized.")
+        print(f"Loaded API key: {key}")
+        return key
 
     @gr.on([api_key.change], inputs=[api_key], outputs=[local_storage])
     def save_to_local_storage(password):
@@ -78,11 +97,38 @@ with gr.Blocks(
         interactive=True,
     )
 
-    def create_new_chat():
-        global CHAT
-        if client:
-            print("Creating new chat")
-            CHAT = client.chats.create(model=MODEL_ID)
+    # --- Helper function to initialize client and chat ---
+    # (Can be defined globally or passed around if needed)
+    def prepare_chat(current_api_key):
+        global CHAT, client
+        # Ensure API key component is accessible here
+        if not current_api_key:
+            print(f"API key: {current_api_key}")
+            print("API key is missing.")
+            raise gr.Error("請先輸入您的 Gemini API 金鑰！", duration=5)
+        # Initialize client if needed or if key changed
+        if not client or client._api_client.api_key != current_api_key:
+            print(
+                f"Initializing Gemini Client with new key ending in ...{current_api_key[-4:]}"
+            )
+            try:
+                client = genai.Client(api_key=current_api_key)
+                # Optionally test client connection here if possible
+                CHAT = None  # Reset chat when client is new
+                print("Gemini Client initialized successfully.")
+            except Exception as e:
+                print(f"Failed to initialize Gemini Client: {e}")
+                raise gr.Error(f"無法初始化 Gemini 客戶端：{e}", duration=10)
+
+        # Initialize chat if needed
+        if not CHAT:
+            print(f"Creating new Gemini chat with model: {MODEL_ID}")
+            try:
+                CHAT = client.chats.create(model=MODEL_ID)
+                print("New Gemini chat created.")
+            except Exception as e:
+                print(f"Failed to create Gemini chat: {e}")
+                raise gr.Error(f"無法創建 Gemini 聊天：{e}", duration=10)
 
     with gr.Tab(label="Text Chat"):
         with gr.Row():
@@ -91,140 +137,261 @@ with gr.Blocks(
             msg = gr.Textbox()
         with gr.Row():
             clear = gr.ClearButton([msg, chatbot])
-            clear.click(create_new_chat, inputs=None, outputs=None)
+
+            # Clear button should also reset the global CHAT object
+            def clear_text_chat_and_reset():
+                global \
+                    CHAT, \
+                    selected_choice, \
+                    past_choices, \
+                    selected_image, \
+                    selected_text
+                selected_choice = None
+                selected_image = None
+                selected_text = None
+                past_choices = set()  # Reset past choices
+                # Clear the chat history
+                CHAT = None
+                print("Text chat cleared and global CHAT reset.")
+                # Return empty values for msg and chatbot components
+                return (
+                    "",
+                    [],
+                )  # ClearButton handles component clearing implicitly if None returned? Let's be explicit.
+
+            clear.click(clear_text_chat_and_reset, inputs=None, outputs=[msg, chatbot])
 
         def user(user_mesage: str, history: list[gr.ChatMessage]):
             return "", history + [gr.ChatMessage(content=user_mesage, role="user")]
 
-        def prepare_chat():
-            global CHAT
-            if not api_key.value:
-                raise gr.Error("請先輸入您的 Gemini API 金鑰！", duration=5)
-            global client
-            if not client:
-                client = genai.Client(api_key=api_key.value)
-
-            if not CHAT:
-                CHAT = client.chats.create(model=MODEL_ID)
-
         def prepare_user_message_context(message: str) -> list[Image.Image | str]:
-            assert CHAT
-            if not CHAT.get_history():  # add story context
-                if selected_choice == "all":
-                    user_msgs = ALL_TEXT_IMG  # type: ignore
-                else:
-                    user_msgs = [f"Page {selected_choice}"]
-                    if selected_image:
-                        user_msgs.append(Image.open(selected_image))  # type: ignore
-                    if selected_text:
-                        user_msgs.append(selected_text)
-                user_msgs.append(message)
-            user_msgs = [message]
+            # Prepares the initial context message for the LLM if chat history is empty
+            user_msgs: list[Image.Image | str] = []
+            if selected_choice == "all":
+                user_msgs = ALL_TEXT_IMG[:]  # Use a copy
+                print(f"Using ALL ({len(user_msgs)}) text/image items as context.")
+            elif selected_choice not in past_choices and selected_choice in pages:
+                past_choices.add(selected_choice)
+                print(f"Selected choice: {selected_choice}")
+                print(f"Past choices: {past_choices}")
+                user_msgs = [f"Page {selected_choice}"]  # Add page context
+                page_data = pages[selected_choice]
+                img_path = IMG_DIR / page_data.img if page_data.img else None
+                if img_path and img_path.exists():
+                    user_msgs.append(Image.open(img_path))
+                    print(f"Adding image: {img_path.name}")
+                if page_data.text:
+                    user_msgs.append(page_data.text)
+                    print("Adding page text.")
+            else:
+                print("Chat has history, sending only new message.")
+                user_msgs = []  # If history exists, just send the new message
+
+            user_msgs.append(message)  # Add the actual user message
 
             return user_msgs
 
-        def bot(history: list[gr.ChatMessage]):
-            assert CHAT
-            prepare_chat()
-            user_message = history[-1].content
-            user_msgs = prepare_user_message_context(user_message, history)
-            history.append(gr.ChatMessage(role="assistant", content=""))
-            res = CHAT.send_message_stream(message=user_msgs)
-            for chunk in res:
-                history[-1].content += chunk.text
-                print(chunk.text, end="", flush=True)
-                yield history
+        def bot(api_key: str, history: list[ChatMessage]):
+            try:
+                # Ensure client and chat are ready
+                prepare_chat(api_key)
+                if not CHAT:
+                    raise ValueError("Chat not initialized")
+
+                user_message = history[-1]["content"]
+                # Prepare message context (story elements + user text)
+                user_msgs_with_context = prepare_user_message_context(user_message)
+
+                history.append({"role": "assistant", "content": ""})
+                print(
+                    f"Sending message to LLM (Text Chat)... First part: {str(user_msgs_with_context[0])[:50]}..."
+                )
+                res = CHAT.send_message_stream(message=user_msgs_with_context)  # type: ignore
+
+                full_response = ""
+                for chunk in res:
+                    if chunk.text:
+                        history[-1]["content"] += chunk.text
+                        full_response += chunk.text
+                        # Small optimization: yield only every few chunks or based on time?
+                        yield history  # Stream intermediate results to UI
+                print(f"\nLLM Full Response (Text Chat): {full_response}")
+
+            except Exception as e:
+                print(f"Error in text chat bot function: {e}")
+                # Update the last message (which is the empty assistant message) with error info
+                history[-1]["content"] = f"[Error] {e}"
+                yield history  # Show error in the chat UI
 
         msg.submit(user, [msg, chatbot], [msg, chatbot], queue=False).then(
-            bot, chatbot, chatbot
+            fn=bot, inputs=[api_key, chatbot], outputs=chatbot
         )
 
-        # def respond(message: str, chat_history: list[gr.ChatMessage]):
-
-        #     history = CHAT.get_history()
-        #     user_msgs: list[gtypes.PartUnionDict] = []
-        #     if not history:  # add story context
-        #         if selected_choice == "all":
-        #             user_msgs = ALL_TEXT_IMG  # type: ignore
-        #         else:
-        #             user_msgs = [f"Page {selected_choice}"]
-        #             if selected_image:
-        #                 user_msgs.append(Image.open(selected_image))  # type: ignore
-        #             if selected_text:
-        #                 user_msgs.append(selected_text)
-        #         user_msgs.append(message)
-        #     user_msgs = [message]
-
-        #     chat_history.append(
-        #         gr.ChatMessage(
-        #             content=message,
-        #             role="user",
-        #         )
-        #     )
-        #     res = CHAT.send_message(message=user_msgs)
-        #     chat_history.append(
-        #         gr.ChatMessage(
-        #             content=res.text,
-        #             role="assistant",
-        #         )
-        #     )
-
-        #     return "", chat_history
-
-        # msg.submit(respond, [msg, chatbot], [msg, chatbot], queue=False)
     with gr.Tab(label="Voice Chat"):
-        transcriber = pipeline("automatic-speech-recognition", model="openai/whisper-large-v3-turbo", device=DEVICE)
+        gr.Markdown("## Voice Interaction\nSpeak, get feedback, and hear the response.")
 
-        def transcribe(stream, new_chunk):
+        def transcribe_voice(stream, new_chunk):
             sr, y = new_chunk
-            
-            # Convert to mono if stereo
             if y.ndim > 1:
                 y = y.mean(axis=1)
-                
             y = y.astype(np.float32)
-            y /= np.max(np.abs(y))
+            max_val = np.max(np.abs(y))
+            if max_val > 0:
+                y /= max_val
+            else:  # Handle silent chunk
+                print("ASR received silent chunk.")
+                # Return current stream, don't update text (return None for text component)
+                return stream, None
 
+            # Accumulate audio
             if stream is not None:
-                stream = np.concatenate([stream, y])
+                if stream.size > 0:
+                    accumulated_stream = np.concatenate([stream, y])
+                else:
+                    accumulated_stream = y
             else:
-                stream = y
-            
-            # result = asr(device=DEVICE, **{"sampling_rate": sr, "raw": stream})
-            # return stream, result.get("text", "")  # Use get() to safely access text field
-            return stream, transcriber({"sampling_rate": sr, "raw": stream})["text"]
-        
+                accumulated_stream = y
+
+            print(
+                f"Running ASR on accumulated stream of length {len(accumulated_stream)}..."
+            )
+            try:
+                # Use the defined asr_pipeline
+                # Adjust generate_kwargs if needed for your specific Whisper model/version
+                result = TRANSCRIBER({"sampling_rate": sr, "raw": accumulated_stream})
+                text_result = result.get("text", "")
+                print(f"ASR Output: {text_result}")
+                return (
+                    accumulated_stream,
+                    text_result,
+                )  # Return updated stream and new text
+            except Exception as e:
+                print(f"Error during ASR transcription: {e}")
+                # Return current stream, don't update text
+                return stream, None
+
+        # State for ASR audio accumulation
+        asr_state = gr.State(None)
+
+        # UI Layout for Voice Chat
         with gr.Row():
-            with gr.Column():
-                # Define Input Components
-                audio_in = gr.Audio(sources=["microphone"], type="numpy", streaming=True) 
-                # Note: streaming might require .stream() event listener instead of button.click()
-                # For simplicity, let's assume a button trigger for now
-                submit_button = gr.Button("Transcribe")
-            
-            with gr.Column():
-                # Define Output Components
-                text_out = gr.Textbox(label="Transcription")
+            mic_input = gr.Audio(
+                sources=["microphone"],
+                streaming=True,
+                label="Microphone Input (Streaming)",
+            )
+            asr_output_textbox = gr.Textbox(label="ASR Output (Live)")
 
-        # Define the interaction logic using event listeners
-        submit_button.click(
-            fn=my_function,          # Your processing function
-            inputs=[audio_in, app_state],  # Map components/state to function args
-            outputs=[app_state, text_out] # Map function return values to components/state
+        # Wire ASR streaming - connects mic input to transcribe_voice function
+        mic_input.stream(
+            fn=transcribe_voice,
+            inputs=[asr_state, mic_input],
+            outputs=[asr_state, asr_output_textbox],
         )
-        
-        # If using streaming audio input like the previous example:
-        # audio_in.stream(
-        #     fn=my_function, 
-        #     inputs=[app_state, audio_in], # Order matters for function args
-        #     outputs=[app_state, text_out]
-        # )
 
+        gr.Markdown("---")  # Separator
+
+        # --- LLM and TTS Components ---
+        with gr.Row():
+            with gr.Column(scale=1):
+                ref_audio_input = gr.Audio(
+                    label="Reference Audio for TTS", type="filepath"
+                )
+                process_button = gr.Button("Get Feedback & Synthesize")
+            with gr.Column(scale=2):
+                llm_output_textbox = gr.Textbox(label="LLM Feedback")
+                tts_audio_output = gr.Audio(
+                    label="Synthesized Speech (TTS Output)", type="filepath"
+                )
+
+        # --- Define LLM + TTS logic Function ---
+        def run_voice_llm_tts(
+            api_key: str, current_asr_text: str, ref_audio_path: str | None
+        ) -> tuple[str, str | None]:
+            llm_response_text = "[LLM] An error occurred."  # Default error message
+            tts_path = None  # Default
+            try:
+                # 1. Ensure API key and chat are ready
+                prepare_chat(api_key)  # Pass the API key to the function
+                if not CHAT:
+                    raise ValueError("Chat not initialized.")
+
+                # 2. Basic input validation
+                if not current_asr_text or not current_asr_text.strip():
+                    return "[LLM] No ASR text detected to process.", None
+                if not ref_audio_path:
+                    return "[LLM] Please provide reference audio for TTS.", None
+
+                # 3. Send ASR text to the existing Gemini Chat
+                print(f"Sending to LLM (Voice Chat): '{current_asr_text}'")
+                # NOTE: This sends ONLY the ASR text. If story context is needed
+                # similar to the Text Chat, the prepare_user_message_context logic
+                # would need to be adapted and called here.
+                llm_res = CHAT.send_message(message=current_asr_text)
+                llm_response_text = llm_res.text
+                if not llm_response_text:
+                    raise ValueError("LLM returned empty response.")
+                print(f"LLM Response (Voice Chat): '{llm_response_text}'")
+
+                # 4. Run TTS on the LLM response using the imported function
+                print(f"Running TTS on: '{llm_response_text}'")
+                # Assumes 'tts' is the correctly modified function imported from ai_storytime.tts
+                tts_path = tts(
+                    path_to_ref_audio=ref_audio_path,
+                    gen_text=llm_response_text,
+                    ref_text="",  # Provide reference text for TTS if needed/available
+                    device="cuda"
+                    if torch.cuda.is_available()
+                    else "cpu",  # Pass the correct device literal
+                )
+                if tts_path is None:
+                    print("TTS generation failed.")
+                    llm_response_text += (
+                        "\n[TTS Generation Failed]"  # Append failure notice
+                    )
+                else:
+                    print(f"TTS generated successfully: {tts_path}")
+
+            except gr.Error as e:  # Catch Gradio specific errors (like missing API key)
+                print(f"Gradio Error in Voice LLM/TTS: {e}")
+                llm_response_text = f"[Error] {e}"
+            except Exception as e:
+                print(f"Error during Voice LLM/TTS processing: {e}")
+                llm_response_text = f"[Error] An unexpected error occurred: {e}"
+                tts_path = None  # Ensure TTS output is cleared on general error
+
+            # Return LLM text and TTS audio path (or None)
+            return llm_response_text, tts_path
+
+        # Wire the button click event
+        process_button.click(
+            fn=run_voice_llm_tts,
+            inputs=[api_key, asr_output_textbox, ref_audio_input],
+            outputs=[llm_output_textbox, tts_audio_output],
+        )
+
+        # Clear Button for Voice Chat tab components
+        clear_voice_button = gr.Button("Clear Voice Outputs")
+
+        def clear_voice_outputs():
+            # Reset ASR state, ASR text, LLM text, Ref audio, TTS audio
+            # Keep Ref audio? Maybe not, user might want to reuse. Let's clear TTS audio only.
+            print("Clearing voice chat outputs (ASR text, LLM text, TTS audio).")
+            return None, "", "", None  # State, ASR Text, LLM Text, TTS Audio
+
+        clear_voice_button.click(
+            fn=clear_voice_outputs,
+            inputs=None,
+            outputs=[
+                asr_state,
+                asr_output_textbox,
+                llm_output_textbox,
+                tts_audio_output,
+            ],
+        )
 
     with gr.Row(equal_height=True):
-        page_text = gr.Markdown(
-            label="Text",
-        )
+        page_text = gr.Markdown(label="Text")
         page_img = gr.Image(
             label="Image",
             type="filepath",
@@ -236,22 +403,41 @@ with gr.Blocks(
     @page_radio.change(inputs=page_radio, outputs=[page_text, page_img])
     def show_page_content(choice):
         global selected_text, selected_image, selected_choice
+        print(f"Page selection changed to: {choice}")
         selected_choice = choice
         if choice == "all":
-            return "", ""
+            selected_text = None
+            selected_image = None
+            # Maybe clear chat history when changing pages? Or keep context?
+            # global CHAT; CHAT = None # Example: Reset chat on page change
+            return (
+                "Displaying all pages context for chat.",
+                None,
+            )  # Display placeholder text/image
 
         page = pages[choice]
-        text = page.text.split("\n")
-        text = [f"# {line}" for line in text]
-        text = "\n".join(text)
+        text_content = page.text.replace(
+            "\n", "\n\n"
+        )  # Add double newline for Markdown paragraphs
 
         img_name = page.img
-        img_path = IMG_DIR / img_name
-        selected_text = text
+        img_path = None
+        if img_name:
+            img_path_check = IMG_DIR / img_name
+            if img_path_check.exists():
+                img_path = str(img_path_check)
+            else:
+                print(f"Warning: Image file not found: {img_path_check}")
 
-        selected_image = img_path
-        return text, img_path
+        selected_text = page.text  # Store original text if needed elsewhere
+        selected_image = img_path  # Store image path
+
+        # Reset chat when page changes?
+        # global CHAT; CHAT = None
+        # print("Resetting chat due to page change.")
+
+        return text_content, img_path
 
 
 if __name__ == "__main__":
-    demo.launch(share=True)
+    demo.launch(share=False, debug=False)
