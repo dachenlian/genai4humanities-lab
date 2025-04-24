@@ -22,7 +22,11 @@ MODEL_ID = "gemini-2.0-flash"
 DATA_DIR = Path(__file__).parent / "data"
 STORY_DIR = DATA_DIR / story_name
 IMG_DIR = STORY_DIR / "img"
-DEFAULT_API_KEY = get_gemini_api_key()
+try:
+    DEFAULT_API_KEY = get_gemini_api_key()
+except ValueError:
+    print("Gemini API key not found. Please set it in the Gradio App")
+    DEFAULT_API_KEY = None
 # DEFAULT_API_KEY = ""
 ALL_TEXT_IMG: list[Image.Image | str] = []
 
