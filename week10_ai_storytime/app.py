@@ -1,11 +1,11 @@
 import os
+
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 import shutil
 import zipfile
 from pathlib import Path
 
 import gradio as gr
-import numpy as np
 import torch
 from google import genai
 from PIL import Image
@@ -379,9 +379,12 @@ with gr.Blocks(
 
         def prepare_user_message_context(message: str) -> list[Image.Image | str]:
             # Prepares the initial context message for the LLM if chat history is empty
-            user_msgs: list[Image.Image | str] = []
+            user_msgs: list[Image.Image | str | None] = []  # Allow None temporarily
             if selected_choice == "all":
-                user_msgs = ALL_TEXT_IMG[:]  # Use a copy
+                # Ensure ALL_TEXT_IMG doesn't contain None, though it shouldn't
+                user_msgs = [
+                    item for item in ALL_TEXT_IMG if item is not None
+                ]  # Use a copy
                 print(f"Using ALL ({len(user_msgs)}) text/image items as context.")
             elif selected_choice not in past_choices and selected_choice in pages:
                 past_choices.add(selected_choice)
@@ -390,19 +393,31 @@ with gr.Blocks(
                 user_msgs = [f"Page {selected_choice}"]  # Add page context
                 page_data = pages[selected_choice]
                 img_path = IMG_DIR / page_data.img if page_data.img else None
+                image_content = None
                 if img_path and img_path.exists():
-                    user_msgs.append(Image.open(img_path))
-                    print(f"Adding image: {img_path.name}")
-                if page_data.text:
+                    try:
+                        image_content = Image.open(img_path)
+                        print(f"Adding image: {img_path.name}")
+                    except Exception as img_e:
+                        print(f"Warning: Could not open image {img_path}: {img_e}")
+                if image_content:
+                    user_msgs.append(image_content)
+                if page_data.text:  # Check if text exists and is not empty/None
                     user_msgs.append(page_data.text)
                     print("Adding page text.")
             else:
-                print("Chat has history, sending only new message.")
+                print(
+                    "Chat has history or no specific page selected, sending only new message."
+                )
                 user_msgs = []  # If history exists, just send the new message
 
-            user_msgs.append(message)  # Add the actual user message
+            if message:  # Ensure message is not None or empty before appending
+                user_msgs.append(message)  # Add the actual user message
 
-            return user_msgs
+            # Filter out any None values that might have slipped in
+            final_user_msgs = [item for item in user_msgs if item is not None]
+
+            return final_user_msgs
 
         def bot(api_key: str, history: list[ChatMessage]):
             try:
@@ -565,7 +580,9 @@ with gr.Blocks(
                     transcription = _transcription
 
                 else:
-                    print(f"Warning: Default TTS voice file not found: {TTS_VOICE_PATH}")
+                    print(
+                        f"Warning: Default TTS voice file not found: {TTS_VOICE_PATH}"
+                    )
                     ref_audio_path = None
                     transcription = ""
             # if ref_audio_path and not Path(ref_audio_path).exists():
@@ -585,10 +602,29 @@ with gr.Blocks(
 
                 # 3. Send ASR text to the existing Gemini Chat
                 print(f"Sending to LLM (Voice Chat): '{current_asr_text}'")
-                # NOTE: This sends ONLY the ASR text. If story context is needed
-                # similar to the Text Chat, the prepare_user_message_context logic
-                # would need to be adapted and called here.
-                llm_res = CHAT.send_message(message=current_asr_text)
+
+                # Prepare message context if needed (similar to text chat)
+                # Ensure current_asr_text is not None before passing
+                user_msgs_with_context_raw = prepare_user_message_context(
+                    current_asr_text or ""
+                )
+
+                # Explicitly filter None values again before sending
+                user_msgs_with_context = [
+                    item for item in user_msgs_with_context_raw if item is not None
+                ]
+
+                if not user_msgs_with_context:
+                    # Handle case where filtering results in an empty list (e.g., only None items were present)
+                    print("Warning: No valid content to send to LLM after filtering.")
+                    return "[LLM] No valid content to process after filtering.", None
+
+                print(
+                    f"Sending message to LLM (Voice Chat)... First part: {str(user_msgs_with_context[0])[:50]}..."
+                )
+                # Send message with context
+                llm_res = CHAT.send_message(message=user_msgs_with_context)  # type: ignore
+                # llm_res = CHAT.send_message(message=current_asr_text) # Original line without context
                 llm_response_text = llm_res.text
                 if not llm_response_text:
                     raise ValueError("LLM returned empty response.")
@@ -618,6 +654,9 @@ with gr.Blocks(
                 llm_response_text = f"[Error] {e}"
             except Exception as e:
                 print(f"Error during Voice LLM/TTS processing: {e}")
+                import traceback  # Add traceback for detailed debugging
+
+                traceback.print_exc()  # Print the full traceback
                 llm_response_text = f"[Error] An unexpected error occurred: {e}"
                 tts_path = None  # Ensure TTS output is cleared on general error
 
