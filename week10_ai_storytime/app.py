@@ -1,5 +1,7 @@
 import zipfile
 from pathlib import Path
+import time
+import shutil
 
 import gradio as gr
 import numpy as np
@@ -7,6 +9,7 @@ import torch
 from google import genai
 from PIL import Image
 from rich import print as rprint
+from tqdm import tqdm
 
 # from ai_storytime.asr import asr
 from ai_storytime.models import ChatMessage, Story
@@ -59,37 +62,90 @@ selected_choice = None
 past_choices = set()
 
 
-def handle_upload(filepath):
+def handle_upload(filepath, progress=gr.Progress(track_tqdm=True)):
     global story_name, STORY_DIR, IMG_DIR, story, pages, ALL_TEXT_IMG
-    story_name = "uploads"
-    STORY_DIR = DATA_DIR / story_name
-    IMG_DIR = STORY_DIR / "img"
 
-    # Unzip the uploaded file
-    with zipfile.ZipFile(filepath, "r") as zip_ref:
-        zip_ref.extractall(STORY_DIR)
+    try:
+        story_name = "uploads"
+        STORY_DIR = DATA_DIR / story_name
+        IMG_DIR = STORY_DIR / "img"
 
-    files = list(STORY_DIR.glob("*"))
-    rprint(f"Uploaded files: {files}")
+        # Clean up previous upload directory if it exists
+        if STORY_DIR.exists():
+            print(f"偵測到舊的上傳目錄，正在清除: {STORY_DIR}")
+            progress(0.05, desc="清除舊的資料...")
+            shutil.rmtree(STORY_DIR)
 
-    # Load the story data
-    load_story_data()
+        STORY_DIR.mkdir(parents=True, exist_ok=True) # Ensure base dir exists
 
-    # Generate updated radio choices
-    new_choices = [("全部", "all")]
-    if pages is not None:
-        new_choices = [(k.title(), k) for k in pages.keys()] + [("全部", "all")]
-    else:
-        new_choices = []
+        # --- Unzipping (10% - 60%) ---
+        progress(0.1, desc="正在解壓縮檔案...")
+        print(f"正在解壓縮 {filepath} 到 {STORY_DIR}")
+        with zipfile.ZipFile(filepath, "r") as zip_ref:
+            # Note: extractall doesn't provide easy granular progress.
+            # For large files, you might iterate zip_ref.infolist()
+            # and extract file by file, updating progress more often.
+            zip_ref.extractall(STORY_DIR)
+        print("解壓縮完成。")
 
-    page_radio = gr.Radio(
-        label="Page",
-        choices=new_choices,
-        interactive=True,
-    )
+        # --- Loading Data (60% - 90%) ---
+        progress(0.6, desc="正在載入故事資料...")
+        files = list(STORY_DIR.glob("**/*")) # List files recursively for info
+        print(f"解壓縮後檔案列表 (前 10 項): {[str(f.relative_to(STORY_DIR)) for f in files[:10]]}")
 
-    # Return the new story title and radio choices
-    story_title = f"# {story.title if story else 'Story Title'}"
+        # This is assumed to update global 'story' and 'pages'
+        # This function itself could potentially accept and use the 'progress' object
+        # if it has long-running internal loops.
+        load_story_data()
+        if not story or not pages: # Check if loading was successful
+            raise ValueError("無法從解壓縮的檔案載入故事資料或頁面。請檢查 ZIP 內容。")
+        print(f"故事資料 '{story.title}' 載入完成。")
+    
+         # --- Finalizing UI Updates (90% - 100%) ---
+        progress(0.9, desc="正在更新頁面選項...")
+
+
+        # # Unzip the uploaded file
+        # with zipfile.ZipFile(filepath, "r") as zip_ref:
+        #     zip_ref.extractall(STORY_DIR)
+
+        # files = list(STORY_DIR.glob("*"))
+        # rprint(f"Uploaded files: {files}")
+
+        # # Load the story data
+        # load_story_data()
+
+        # Generate updated radio choices
+        new_choices = [("全部", "all")]
+        if pages is not None:
+            new_choices = [(k.title(), k) for k in pages.keys()] + [("全部", "all")]
+        else:
+            new_choices = []
+
+        page_radio = gr.Radio(
+            label="Page",
+            choices=new_choices,
+            interactive=True,
+        )
+
+        # Return the new story title and radio choices
+        story_title = f"# {story.title if story else 'Story Title'}"
+    except FileNotFoundError as e:
+         print(f"處理上傳時發生錯誤: 找不到檔案 {e}")
+         raise gr.Error(f"處理失敗：找不到必要的檔案或目錄。{e}")
+    except zipfile.BadZipFile:
+        print(f"處理上傳時發生錯誤: 無效的 ZIP 檔案 {filepath}")
+        raise gr.Error("處理失敗：上傳的不是有效的 ZIP 檔案。")
+    except Exception as e:
+        print(f"處理上傳檔案時發生未預期的錯誤: {e}")
+        import traceback
+        traceback.print_exc() # Print full traceback for debugging
+        raise gr.Error(f"處理上傳時發生未預期的錯誤：{e}")
+
+    progress(1.0, desc="處理完成！")
+    print("上傳處理完成。")
+    gr.Info("✅ 故事上傳並載入成功！")
+
     return story_title, page_radio
 
 
@@ -110,7 +166,7 @@ with gr.Blocks(
                     elem_id="api_key",
                 )
                 upload_button = gr.UploadButton(
-                    "上傳故事檔案",
+                    "上傳故事檔案（.zip）",
                     file_types=[".zip"],
                     file_count="single",
                 )
