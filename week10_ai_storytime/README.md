@@ -35,34 +35,55 @@ Your story must be provided as a JSON file named `story.json` with the following
 4. Include a cover image named according to what's specified in your JSON (e.g., "cover.png")
 5. For each page, include a corresponding image (e.g., "1.png", "2.png", etc.)
 
-## How to Upload
+## How to Upload Your Story
 
-1. Create your `story.json` file following the structure above
-2. Create an `img` folder and add all your image files to it
-3. Ensure your folder structure looks like this:
+1. 建立遵循上述結構的 `story.json` 檔案
+2. 創建一個 `img` 資料夾並將所有圖片檔案添加到其中
+3. 確保您的資料夾結構如下：
    ```
    ├── story.json
    └── img/
        ├── cover.png
        ├── 1.png
        ├── 2.png
-       └── ... (other page images)
+       └── ... (其他頁面圖片)
    ```
-4. Zip your files such that `story.json` and `img` folder are at the root level of the zip file
-5. When unzipped, the structure should allow immediate access to story.json and the img folder (no nested folders)
+4. 壓縮您的檔案，使 `story.json` 和 `img` 資料夾位於 zip 檔案的根層級
+5. 解壓縮後，結構應允許直接存取 story.json 和 img 資料夾（無巢狀資料夾）
 
-## Example
+## How to Upload Your Voice for Cloning
 
-The current implementation includes "大野狼與七隻小羊" (The Wolf and the Seven Little Goats) as an example. You can reference its structure in the `data/story/story.json` file.
+The application allows you to use your own voice for text-to-speech. To upload your voice:
 
-## Tips
+1. Prepare a clear voice recording (WAV format, recommended max 12 seconds)
+2. Optionally, create a text file with the exact transcription of your recording
+3. Package your files in a .zip with the following structure:
+   ```
+   ├── voice.wav        # Your voice recording
+   └── transcription.txt  # Optional: Transcription of your recording
+   ```
+4. Upload using the "Upload Voice File (.zip)" button in the application
+
+Notes:
+- The transcription file is optional but recommended for best results
+- If not provided, the system will generate a transcription, but this will slow down processing
+- For optimal voice cloning, speak clearly and use a quiet recording environment
+
+Example of `transcription.txt` content:
+```
+This is my voice sample for AI Storytime. I'm recording this to create a personalized voice experience when using the application.
+```
+
+## 範例
+
+目前的實現包括"大野狼與七隻小羊"作為範例。您可以參考 `data/story/story.json` 檔案中的結構。
+
+## 提示
 
 - Each page's text can include newline characters (`\n`) for paragraph breaks
 - Keep image filenames simple and match them exactly in your JSON
 - Test your JSON structure with a validator to ensure it's properly formatted
 - Make sure all referenced images exist in your folder
-
-For any questions or assistance, please contact the project maintainers.
 
 ---
 
@@ -103,7 +124,7 @@ For any questions or assistance, please contact the project maintainers.
 4. 包括一張按照 JSON 中指定命名的封面圖片（例如："cover.png"）
 5. 每一頁都需要有對應的圖片（例如："1.png"、"2.png" 等）
 
-## 如何上傳
+## 如何上傳您的故事
 
 1. 建立遵循上述結構的 `story.json` 檔案
 2. 創建一個 `img` 資料夾並將所有圖片檔案添加到其中
@@ -119,6 +140,29 @@ For any questions or assistance, please contact the project maintainers.
 4. 壓縮您的檔案，使 `story.json` 和 `img` 資料夾位於 zip 檔案的根層級
 5. 解壓縮後，結構應允許直接存取 story.json 和 img 資料夾（無巢狀資料夾）
 
+## 如何上傳您的聲音進行克隆
+
+本應用程式允許您使用自己的聲音進行文字轉語音。要上傳您的聲音：
+
+1. 準備一段清晰的語音錄音（WAV 格式，建議最長 12 秒）
+2. 可選擇建立一個包含您錄音精確文字稿的文字檔
+3. 將您的檔案打包成具有以下結構的 .zip：
+   ```
+   ├── voice.wav         # 您的語音錄音
+   └── transcription.txt # 選填：您錄音的文字稿
+   ```
+4. 使用應用程式中的「上傳語音檔案 (.zip)」按鈕進行上傳
+
+注意事項：
+- 文字稿檔案是選填的，但建議提供以獲得最佳效果
+- 若未提供，系統將自動生成文字稿，但這會減慢處理速度
+- 為獲得最佳語音克隆效果，請清晰發音並在安靜的環境中錄音
+
+`transcription.txt` 內容範例：
+```
+這是我為 AI 故事時間應用準備的語音樣本。我錄製這段內容是為了在使用應用程式時創造個人化的語音體驗。
+```
+
 ## 範例
 
 目前的實現包括"大野狼與七隻小羊"作為範例。您可以參考 `data/story/story.json` 檔案中的結構。
@@ -129,5 +173,3 @@ For any questions or assistance, please contact the project maintainers.
 - 保持圖片檔名簡單，並與您的 JSON 中的名稱完全匹配
 - 使用驗證器測試您的 JSON 結構，確保格式正確
 - 確保您的資料夾中存在所有引用的圖片
-
-如有任何問題或需要協助，請聯繫專案維護人員。
