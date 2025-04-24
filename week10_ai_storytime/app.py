@@ -11,8 +11,7 @@ import numpy as np
 import torch
 from google import genai
 from PIL import Image
-from rich import print as rprint
-from tqdm import tqdm
+from transformers import pipeline
 
 # from ai_storytime.asr import asr
 from ai_storytime.models import ChatMessage, Story
@@ -26,6 +25,9 @@ print(f"Using device: {DEVICE}")
 
 MODEL_ID = "gemini-2.0-flash"
 DATA_DIR = Path(__file__).parent / "data"
+TTS_DIR = DATA_DIR / "tts"
+TTS_VOICE_PATH = TTS_DIR / "voice.wav"
+TTS_VOICE_REF_TRANSCRIPT_PATH = TTS_DIR / "transcription.txt"
 STORY_DIR = DATA_DIR / story_name
 IMG_DIR = STORY_DIR / "img"
 try:
@@ -36,9 +38,35 @@ except ValueError:
 # DEFAULT_API_KEY = ""
 ALL_TEXT_IMG: list[Image.Image | str] = []
 
-# TRANSCRIBER = pipeline(
-#     "automatic-speech-recognition", model="openai/whisper-large-v3-turbo", device=DEVICE
-# )
+TRANSCRIBER = pipeline(
+    "automatic-speech-recognition", model="openai/whisper-large-v3-turbo", device=DEVICE
+)
+
+if not STORY_DIR.exists():
+    print(f"Warning: Story directory not found: {STORY_DIR}")
+    STORY_DIR.mkdir(parents=True, exist_ok=True)
+if not IMG_DIR.exists():
+    print(f"Warning: Image directory not found: {IMG_DIR}")
+    IMG_DIR.mkdir(parents=True, exist_ok=True)
+if not TTS_DIR.exists():
+    print(f"Warning: TTS directory not found: {TTS_DIR}")
+    TTS_DIR.mkdir(parents=True, exist_ok=True)
+if not DATA_DIR.exists():
+    print(f"Warning: Data directory not found: {DATA_DIR}")
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+if TTS_VOICE_PATH.exists():
+    print(f"Using TTS voice file: {TTS_VOICE_PATH}")
+else:
+    print(f"Warning: TTS voice file not found: {TTS_VOICE_PATH}")
+if TTS_VOICE_REF_TRANSCRIPT_PATH.exists():
+    print(f"Using TTS voice reference transcript: {TTS_VOICE_REF_TRANSCRIPT_PATH}")
+    _transcription = TTS_VOICE_REF_TRANSCRIPT_PATH.read_text()
+else:
+    print(
+        f"Warning: TTS voice reference transcript not found: {TTS_VOICE_REF_TRANSCRIPT_PATH}"
+    )
+    _transcription = ""
 
 client = None
 CHAT = None
