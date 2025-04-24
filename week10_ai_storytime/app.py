@@ -443,79 +443,112 @@ with gr.Blocks(
     with gr.Tab(label="Voice Chat"):
         gr.Markdown("## Voice Interaction\nSpeak, get feedback, and hear the response.")
 
-        def transcribe_voice(stream, new_chunk):
-            sr, y = new_chunk
-            if y.ndim > 1:
-                y = y.mean(axis=1)
-            y = y.astype(np.float32)
-            max_val = np.max(np.abs(y))
-            if max_val > 0:
-                y /= max_val
-            else:  # Handle silent chunk
-                print("ASR received silent chunk.")
-                # Return current stream, don't update text (return None for text component)
-                return stream, None
+        # # Streaming Version:
+        # def transcribe_voice(stream, new_chunk):
+        #     sr, y = new_chunk
+        #     if y.ndim > 1:
+        #         y = y.mean(axis=1)
+        #     y = y.astype(np.float32)
+        #     max_val = np.max(np.abs(y))
+        #     if max_val > 0:
+        #         y /= max_val
+        #     else:  # Handle silent chunk
+        #         print("ASR received silent chunk.")
+        #         # Return current stream, don't update text (return None for text component)
+        #         return stream, None
 
-            # Accumulate audio
-            if stream is not None:
-                if stream.size > 0:
-                    accumulated_stream = np.concatenate([stream, y])
-                else:
-                    accumulated_stream = y
-            else:
-                accumulated_stream = y
+        #     # Accumulate audio
+        #     if stream is not None:
+        #         if stream.size > 0:
+        #             accumulated_stream = np.concatenate([stream, y])
+        #         else:
+        #             accumulated_stream = y
+        #     else:
+        #         accumulated_stream = y
 
-            print(
-                f"Running ASR on accumulated stream of length {len(accumulated_stream)}..."
-            )
+        #     print(
+        #         f"Running ASR on accumulated stream of length {len(accumulated_stream)}..."
+        #     )
+        #     try:
+        #         # Use the defined asr_pipeline
+        #         # Adjust generate_kwargs if needed for your specific Whisper model/version
+        #         result = TRANSCRIBER({"sampling_rate": sr, "raw": accumulated_stream})
+        #         text_result = result.get("text", "")
+        #         print(f"ASR Output: {text_result}")
+        #         return (
+        #             accumulated_stream,
+        #             text_result,
+        #         )  # Return updated stream and new text
+        #     except Exception as e:
+        #         print(f"Error during ASR transcription: {e}")
+        #         # Return current stream, don't update text
+        #         return stream, None
+
+        # # State for ASR audio accumulation (Streaming Version)
+        # asr_state = gr.State(None)
+
+        # # UI Layout for Voice Chat (Streaming Version)
+        # with gr.Row(equal_height=True):
+        #     mic_input = gr.Audio(
+        #         sources=["microphone"],
+        #         streaming=True,
+        #         label="麥克風輸入 (串流)",
+        #     )
+        #     asr_output_textbox = gr.Textbox(label="語音識別結果 (即時)")
+
+        # # Wire ASR streaming - connects mic input to transcribe_voice function (Streaming Version)
+        # mic_input.stream(
+        #     fn=transcribe_voice,
+        #     inputs=[asr_state, mic_input],
+        #     outputs=[asr_state, asr_output_textbox],
+        # )
+        # # End Streaming Version
+
+        # Non-Streaming Version:
+        def transcribe_voice(audio_filepath):
+            if audio_filepath is None:
+                print("No audio file provided for transcription.")
+                return ""  # Return empty string if no file
+
+            print(f"Running ASR on audio file: {audio_filepath}...")
             try:
-                # Use the defined asr_pipeline
-                # Adjust generate_kwargs if needed for your specific Whisper model/version
-                result = TRANSCRIBER({"sampling_rate": sr, "raw": accumulated_stream})
+                # Use the defined TRANSCRIBER pipeline directly on the file path
+                result = TRANSCRIBER(audio_filepath)
                 text_result = result.get("text", "")
                 print(f"ASR Output: {text_result}")
-                return (
-                    accumulated_stream,
-                    text_result,
-                )  # Return updated stream and new text
+                return text_result  # Return only the transcribed text
             except Exception as e:
                 print(f"Error during ASR transcription: {e}")
-                # Return current stream, don't update text
-                return stream, None
+                return f"[Error during transcription: {e}]"
 
-        # State for ASR audio accumulation
-        asr_state = gr.State(None)
-
-        # UI Layout for Voice Chat
+        # UI Layout for Voice Chat (Non-Streaming Version)
         with gr.Row(equal_height=True):
             mic_input = gr.Audio(
                 sources=["microphone"],
-                streaming=True,
-                label="麥克風輸入 (串流)",
+                streaming=False,  # Set to False for non-streaming
+                type="filepath",  # Ensure output is a filepath
+                label="麥克風輸入 (錄音後處理)",
             )
-            asr_output_textbox = gr.Textbox(label="語音識別結果 (即時)")
+            asr_output_textbox = gr.Textbox(label="語音識別結果")
 
-        # Wire ASR streaming - connects mic input to transcribe_voice function
-        mic_input.stream(
+        # Wire ASR - trigger transcription when recording stops (Non-Streaming Version)
+        mic_input.stop_recording(
             fn=transcribe_voice,
-            inputs=[asr_state, mic_input],
-            outputs=[asr_state, asr_output_textbox],
+            inputs=[mic_input],  # Input is the audio component itself
+            outputs=[asr_output_textbox],  # Output is the textbox
         )
+        # End Non-Streaming Version
 
         gr.Markdown("---")  # Separator
 
         # --- LLM and TTS Components ---
         with gr.Row():
             with gr.Column(scale=1):
-                ref_audio_input = gr.Audio(
-                    label="語音參考音檔", type="filepath"
-                )
+                ref_audio_input = gr.Audio(label="語音參考音檔", type="filepath")
                 process_button = gr.Button("獲取回饋與生成語音")
             with gr.Column(scale=2):
                 llm_output_textbox = gr.Textbox(label="LLM 模型回饋")
-                tts_audio_output = gr.Audio(
-                    label="合成語音輸出", type="filepath"
-                )
+                tts_audio_output = gr.Audio(label="合成語音輸出", type="filepath")
 
         # --- Define LLM + TTS logic Function ---
         def run_voice_llm_tts(
@@ -602,16 +635,18 @@ with gr.Blocks(
         clear_voice_button = gr.Button("Clear Voice Outputs")
 
         def clear_voice_outputs():
-            # Reset ASR state, ASR text, LLM text, Ref audio, TTS audio
-            # Keep Ref audio? Maybe not, user might want to reuse. Let's clear TTS audio only.
+            # Reset ASR text, LLM text, Ref audio, TTS audio
             print("Clearing voice chat outputs (ASR text, LLM text, TTS audio).")
-            return None, "", "", None  # State, ASR Text, LLM Text, TTS Audio
+            # If using streaming, you might need to return None for asr_state as well
+            # return None, "", "", None # For Streaming: State, ASR Text, LLM Text, TTS Audio
+            return "", "", None  # For Non-Streaming: ASR Text, LLM Text, TTS Audio
 
         clear_voice_button.click(
             fn=clear_voice_outputs,
             inputs=None,
             outputs=[
-                asr_state,
+                # If using streaming, add asr_state here:
+                # asr_state,
                 asr_output_textbox,
                 llm_output_textbox,
                 tts_audio_output,
