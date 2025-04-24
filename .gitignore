@@ -286,3 +286,4 @@ gradio/launches.json
 gradio/hash_seed.txt
 .gradio/
 **/uploads/
+**/tts_output
