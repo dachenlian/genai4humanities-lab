@@ -281,8 +281,10 @@ with gr.Blocks(
     )
 
     # Update the upload button to connect to the outputs
-    upload_button.upload(
-        handle_upload, inputs=upload_button, outputs=[story_title_md, page_radio]
+    story_upload_button.upload(
+        handle_story_upload,
+        inputs=story_upload_button,
+        outputs=[story_title_md, page_radio],
     )
 
     @demo.load(inputs=[local_storage], outputs=[api_key])
