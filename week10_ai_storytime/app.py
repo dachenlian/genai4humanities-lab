@@ -182,6 +182,65 @@ def handle_story_upload(filepath, progress=gr.Progress(track_tqdm=True)):
     return story_title, page_radio
 
 
+def handle_voice_upload(filepath, progress=gr.Progress(track_tqdm=True)):
+    global TTS_VOICE_PATH, TTS_VOICE_REF_TRANSCRIPT_PATH, _transcription
+
+    try:
+        # Clean up previous upload directory if it exists
+        if TTS_DIR.exists():
+            print(f"偵測到舊的上傳目錄，正在清除: {TTS_DIR}")
+            progress(0.05, desc="清除舊的資料...")
+            shutil.rmtree(TTS_DIR)
+
+        TTS_DIR.mkdir(parents=True, exist_ok=True)  # Ensure base dir exists
+
+        # --- Unzipping (10% - 60%) ---
+        progress(0.1, desc="正在解壓縮檔案...")
+        print(f"正在解壓縮 {filepath} 到 {TTS_DIR}")
+        with zipfile.ZipFile(filepath, "r") as zip_ref:
+            zip_ref.extractall(TTS_DIR)
+        print("解壓縮完成。")
+
+        # --- Loading Data (60% - 90%) ---
+        progress(0.6, desc="正在載入語音資料...")
+        files = list(TTS_DIR.glob("**/*"))  # List files recursively for info
+        print(
+            f"解壓縮後檔案列表 (前 10 項): {[str(f.relative_to(TTS_DIR)) for f in files[:10]]}"
+        )
+
+        # Check if the voice file and reference transcript exist
+        if not TTS_VOICE_PATH.exists():
+            raise FileNotFoundError(f"TTS voice file not found: {TTS_VOICE_PATH}")
+        if not TTS_VOICE_REF_TRANSCRIPT_PATH.exists():
+            raise FileNotFoundError(
+                f"TTS voice reference transcript not found: {TTS_VOICE_REF_TRANSCRIPT_PATH}"
+            )
+            _transcription = ""
+        else:
+            _transcription = TTS_VOICE_REF_TRANSCRIPT_PATH.read_text()
+            print(f"Using TTS voice reference transcript: {_transcription}")
+
+        # --- Finalizing UI Updates (90% - 100%) ---
+        progress(0.9, desc="正在更新頁面選項...")
+
+    except FileNotFoundError as e:
+        print(f"處理上傳時發生錯誤: 找不到檔案 {e}")
+        raise gr.Error(f"處理失敗：找不到必要的檔案或目錄。{e}")
+    except zipfile.BadZipFile:
+        print(f"處理上傳時發生錯誤: 無效的 ZIP 檔案 {filepath}")
+        raise gr.Error("處理失敗：上傳的不是有效的 ZIP 檔案。")
+    except Exception as e:
+        print(f"處理上傳檔案時發生未預期的錯誤: {e}")
+        import traceback
+
+        traceback.print_exc()
+        # Print full traceback for debugging
+        raise gr.Error(f"處理上傳時發生未預期的錯誤：{e}")
+    progress(1.0, desc="處理完成！")
+    print("上傳處理完成。")
+    gr.Info("✅ 語音上傳並載入成功！")
+
+
 with gr.Blocks(
     theme=gr.themes.Citrus()  # type: ignore
 ) as demo:
@@ -198,11 +257,16 @@ with gr.Blocks(
                     interactive=True,
                     elem_id="api_key",
                 )
-                upload_button = gr.UploadButton(
-                    "上傳故事檔案（.zip）",
+                story_upload_button = gr.UploadButton(
+                    "📖 上傳故事檔案（.zip）",
                     file_types=[".zip"],
                     file_count="single",
                 )
+                # voice_upload_button = gr.UploadButton(
+                #     "🗣️ 上傳語音檔案（.zip）",
+                #     file_types=[".zip"],
+                #     file_count="single",
+                # )
 
     story_title_md = gr.Markdown(f"# {story.title if story else 'Story Title'}")
     choices = [("全部", "all")]
