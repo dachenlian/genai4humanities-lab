@@ -173,3 +173,9 @@ This is my voice sample for AI Storytime. I'm recording this to create a persona
 - 保持圖片檔名簡單，並與您的 JSON 中的名稱完全匹配
 - 使用驗證器測試您的 JSON 結構，確保格式正確
 - 確保您的資料夾中存在所有引用的圖片
+
+
+## Bugs
+
+* Must upload a story first before doing Voice Chat
+* 
