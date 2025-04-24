@@ -1,4 +1,5 @@
 import os
+
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 import shutil
 import zipfile
@@ -75,11 +76,32 @@ pages = None
 def load_story_data():
     global ALL_TEXT_IMG, story, pages
 
-    with open(STORY_DIR / "story.json", "r", encoding="utf-8") as file:
-        story = Story.model_validate_json(file.read())
-    pages = story.pages
+    # Reset relevant states when loading new story data
+    global selected_choice, past_choices, selected_image, selected_text
+    selected_choice = None
+    past_choices = set()
+    selected_image = None
+    selected_text = None
 
-    ALL_TEXT_IMG = story.gather_text_and_images(IMG_DIR)
+    try:
+        with open(STORY_DIR / "story.json", "r", encoding="utf-8") as file:
+            story = Story.model_validate_json(file.read())
+        pages = story.pages
+        ALL_TEXT_IMG = story.gather_text_and_images(IMG_DIR)
+        print(f"Story '{story.title}' loaded successfully with {len(pages)} pages.")
+        return True  # Indicate success
+    except FileNotFoundError:
+        print(f"Error: story.json not found in {STORY_DIR}")
+        story = None
+        pages = None
+        ALL_TEXT_IMG = []
+        return False  # Indicate failure
+    except Exception as e:
+        print(f"Error loading story data: {e}")
+        story = None
+        pages = None
+        ALL_TEXT_IMG = []
+        return False  # Indicate failure
 
 
 # load_story_data()  # load default story
@@ -124,42 +146,43 @@ def handle_story_upload(filepath, progress=gr.Progress(track_tqdm=True)):
             f"解壓縮後檔案列表 (前 10 項): {[str(f.relative_to(STORY_DIR)) for f in files[:10]]}"
         )
 
-        # This is assumed to update global 'story' and 'pages'
-        # This function itself could potentially accept and use the 'progress' object
-        # if it has long-running internal loops.
-        load_story_data()
-        if not story or not pages:  # Check if loading was successful
+        # Load story data and check if successful
+        load_successful = load_story_data()
+        if not load_successful or not story or not pages:
             raise ValueError("無法從解壓縮的檔案載入故事資料或頁面。請檢查 ZIP 內容。")
         print(f"故事資料 '{story.title}' 載入完成。")
 
         # --- Finalizing UI Updates (90% - 100%) ---
         progress(0.9, desc="正在更新頁面選項...")
 
-        # # Unzip the uploaded file
-        # with zipfile.ZipFile(filepath, "r") as zip_ref:
-        #     zip_ref.extractall(STORY_DIR)
+        # Generate updated radio choices for main page display
+        main_page_choices = [("全部", "all")]
+        if pages:
+            main_page_choices = [(k.title(), k) for k in pages.keys()] + [
+                ("全部", "all")
+            ]
 
-        # files = list(STORY_DIR.glob("*"))
-        # rprint(f"Uploaded files: {files}")
+        # Generate updated radio choices for voice reading page selection
+        reading_page_choices = []
+        if pages:
+            reading_page_choices = [(k.title(), k) for k in pages.keys()]
 
-        # # Load the story data
-        # load_story_data()
-
-        # Generate updated radio choices
-        new_choices = [("全部", "all")]
-        if pages is not None:
-            new_choices = [(k.title(), k) for k in pages.keys()] + [("全部", "all")]
-        else:
-            new_choices = []
-
-        page_radio = gr.Radio(
-            label="Page",
-            choices=new_choices,
+        # Update the Gradio components
+        main_page_radio_update = gr.Radio(
+            choices=main_page_choices,
+            value=None,  # Reset selection
             interactive=True,
         )
+        reading_page_radio_update = gr.Radio(
+            choices=reading_page_choices,
+            value=None,  # Reset selection
+            interactive=True,
+            # Keep visibility based on current mode (might need adjustment if mode state isn't updated yet)
+        )
 
-        # Return the new story title and radio choices
-        story_title = f"# {story.title if story else 'Story Title'}"
+        # Return the new story title and updated radio components
+        story_title_update = f"# {story.title}"
+
     except FileNotFoundError as e:
         print(f"處理上傳時發生錯誤: 找不到檔案 {e}")
         raise gr.Error(f"處理失敗：找不到必要的檔案或目錄。{e}")
@@ -177,7 +200,8 @@ def handle_story_upload(filepath, progress=gr.Progress(track_tqdm=True)):
     print("上傳處理完成。")
     gr.Info("✅ 故事上傳並載入成功！")
 
-    return story_title, page_radio
+    # Return updates for story title, main page radio, and reading page radio
+    return story_title_update, main_page_radio_update, reading_page_radio_update
 
 
 def handle_voice_upload(filepath, progress=gr.Progress(track_tqdm=True)):
@@ -278,11 +302,12 @@ with gr.Blocks(
         interactive=True,
     )
 
-    # Update the upload button to connect to the outputs
+    # Update the upload button to connect to the outputs, including the new reading page radio
     story_upload_button.upload(
         handle_story_upload,
         inputs=story_upload_button,
-        outputs=[story_title_md, page_radio],
+        # Outputs now include the reading_page_radio (defined later in the Voice Chat tab)
+        outputs=[story_title_md, page_radio, page_radio],  # Add reading_page_radio here
     )
 
     @demo.load(inputs=[local_storage], outputs=[api_key])
@@ -443,6 +468,132 @@ with gr.Blocks(
     with gr.Tab(label="Voice Chat"):
         gr.Markdown("## Voice Interaction\nSpeak, get feedback, and hear the response.")
 
+        # --- State Variables for Voice Chat ---
+        # State for ASR audio accumulation
+        asr_state = gr.State(None)
+        # State for voice chat mode ('Free Chat' or 'Story Reading')
+        voice_chat_mode_state = gr.State("Free Chat")
+        # State for the ID of the page selected for reading
+        reading_page_id_state = gr.State(None)
+        # State to store the actual text of the selected reading page
+        reading_page_text_state = gr.State(None)
+
+        # --- Mode Selection ---
+        with gr.Row():
+            voice_mode_radio = gr.Radio(
+                ["Free Chat", "Story Reading"],
+                label="Voice Chat Mode",
+                value="Free Chat",
+                interactive=True,
+            )
+
+        # --- Reading Page Selection (Initially Hidden) ---
+        reading_page_choices = []
+        if pages:
+            reading_page_choices = [(k.title(), k) for k in pages.keys()]
+
+        with gr.Row(visible=False) as reading_page_row:  # Initially hidden row
+            reading_page_radio = gr.Radio(
+                choices=reading_page_choices,
+                label="Select Page to Read",
+                interactive=True,
+                # value=None # Let the change handler set the value
+            )
+
+        # --- Mic Input and ASR Output ---
+        with gr.Row(equal_height=True):
+            mic_input = gr.Audio(
+                sources=["microphone"],
+                streaming=True,
+                label="麥克風輸入 (串流)",
+            )
+            asr_output_textbox = gr.Textbox(label="語音識別結果 (即時)")
+
+        # --- LLM and TTS Components ---
+        gr.Markdown("---")  # Separator
+        with gr.Row():
+            with gr.Column(scale=1):
+                # Keep ref_audio_input for potential future use or different TTS modes
+                ref_audio_input = gr.Audio(
+                    label="語音參考音檔 (For TTS Voice Cloning)", type="filepath"
+                )
+                process_button = gr.Button("獲取回饋與生成語音")
+            with gr.Column(scale=2):
+                llm_output_textbox = gr.Textbox(label="LLM 模型回饋 / 回應")
+                tts_audio_output = gr.Audio(label="合成語音輸出", type="filepath")
+
+        # --- Logic for Mode Change ---
+        def handle_mode_change(mode):
+            global reading_page_id_state, reading_page_text_state  # Access global state if needed, but prefer returning updates
+            print(f"Voice chat mode changed to: {mode}")
+            if mode == "Story Reading":
+                if not pages:  # Check if story/pages are loaded
+                    gr.Warning("請先上傳或載入故事以使用朗讀模式。")
+                    # Force back to Free Chat if no pages available? Or just disable reading radio?
+                    # Returning updates is safer:
+                    return {
+                        reading_page_row: gr.Row(visible=True),
+                        reading_page_radio: gr.Radio(
+                            interactive=False,
+                        ),
+                        voice_chat_mode_state: "Story Reading",  # Keep state consistent
+                        reading_page_id_state: None,
+                        reading_page_text_state: None,
+                    }
+                else:
+                    # Show the reading page selection row and make radio interactive
+                    return {
+                        reading_page_row: gr.Row(visible=True),
+                        reading_page_radio: gr.Radio(
+                            interactive=True, value=None
+                        ),  # Reset selection
+                        voice_chat_mode_state: "Story Reading",
+                        reading_page_id_state: None,  # Reset page ID
+                        reading_page_text_state: None,  # Reset page text
+                    }
+            else:  # Free Chat mode
+                # Hide the reading page selection row
+                return {
+                    reading_page_row: gr.Row(visible=False),
+                    reading_page_radio: gr.Radio(interactive=False, value=None),
+                    voice_chat_mode_state: "Free Chat",
+                    reading_page_id_state: None,  # Clear page ID
+                    reading_page_text_state: None,  # Clear page text
+                }
+
+        voice_mode_radio.change(
+            fn=handle_mode_change,
+            inputs=voice_mode_radio,
+            outputs=[
+                reading_page_row,
+                reading_page_radio,  # Allow updating the radio itself (e.g., disable)
+                voice_chat_mode_state,
+                reading_page_id_state,
+                reading_page_text_state,
+            ],
+        )
+
+        # --- Logic for Reading Page Selection ---
+        def handle_reading_page_selection(page_id):
+            if page_id and pages and page_id in pages:
+                selected_page_text = pages[page_id].text
+                print(
+                    f"Selected page '{page_id}' for reading. Text length: {len(selected_page_text)}"
+                )
+                # Return updates for the state variables
+                return page_id, selected_page_text
+            else:
+                print(f"Invalid page selection '{page_id}' or no pages loaded.")
+                # Clear the states if selection is invalid or cleared
+                return None, None
+
+        reading_page_radio.change(
+            fn=handle_reading_page_selection,
+            inputs=reading_page_radio,
+            outputs=[reading_page_id_state, reading_page_text_state],
+        )
+
+        # --- ASR Streaming Logic (Unchanged) ---
         def transcribe_voice(stream, new_chunk):
             sr, y = new_chunk
             if y.ndim > 1:
@@ -483,138 +634,169 @@ with gr.Blocks(
                 # Return current stream, don't update text
                 return stream, None
 
-        # State for ASR audio accumulation
-        asr_state = gr.State(None)
-
-        # UI Layout for Voice Chat
-        with gr.Row(equal_height=True):
-            mic_input = gr.Audio(
-                sources=["microphone"],
-                streaming=True,
-                label="麥克風輸入 (串流)",
-            )
-            asr_output_textbox = gr.Textbox(label="語音識別結果 (即時)")
-
-        # Wire ASR streaming - connects mic input to transcribe_voice function
         mic_input.stream(
             fn=transcribe_voice,
             inputs=[asr_state, mic_input],
             outputs=[asr_state, asr_output_textbox],
         )
 
-        gr.Markdown("---")  # Separator
-
-        # --- LLM and TTS Components ---
-        with gr.Row():
-            with gr.Column(scale=1):
-                ref_audio_input = gr.Audio(
-                    label="語音參考音檔", type="filepath"
-                )
-                process_button = gr.Button("獲取回饋與生成語音")
-            with gr.Column(scale=2):
-                llm_output_textbox = gr.Textbox(label="LLM 模型回饋")
-                tts_audio_output = gr.Audio(
-                    label="合成語音輸出", type="filepath"
-                )
-
-        # --- Define LLM + TTS logic Function ---
+        # --- Modified LLM + TTS logic Function ---
         def run_voice_llm_tts(
             api_key: str,
             current_asr_text: str,
+            mode: str,  # New input: 'Free Chat' or 'Story Reading'
+            reading_ref_text: str | None,  # New input: Text of the page to read
             ref_audio_path: str | Path | None = TTS_DIR / "voice.wav",
             transcription: str = "",
         ) -> tuple[str, str | None]:
-            llm_response_text = "[LLM] An error occurred."  # Default error message
-            tts_path = None  # Default
+            llm_response_text = "[LLM] An error occurred."
+            tts_path = None
+
+            print(f"Got reading mode: {mode}")
+
+            # --- Input Validation ---
+            if not current_asr_text or not current_asr_text.strip():
+                return "[LLM] No speech detected to process.", None
             if not ref_audio_path:
                 if TTS_VOICE_PATH.exists():
                     ref_audio_path = TTS_VOICE_PATH
                     transcription = _transcription
-
                 else:
-                    print(f"Warning: Default TTS voice file not found: {TTS_VOICE_PATH}")
+                    print(
+                        f"Warning: Default TTS voice file not found: {TTS_VOICE_PATH}"
+                    )
                     ref_audio_path = None
                     transcription = ""
             # if ref_audio_path and not Path(ref_audio_path).exists():
             #     ref_audio_path = None
             #     transcription = ""
+
             try:
                 # 1. Ensure API key and chat are ready
-                prepare_chat(api_key)  # Pass the API key to the function
+                prepare_chat(api_key)
                 if not CHAT:
                     raise ValueError("Chat not initialized.")
 
-                # 2. Basic input validation
-                if not current_asr_text or not current_asr_text.strip():
-                    return "[LLM] No ASR text detected to process.", None
-                if not ref_audio_path:
-                    return "[LLM] Please provide reference audio for TTS.", None
+                # 2. Determine LLM prompt based on mode
+                if mode == "Story Reading":
+                    print("Mode: Story Reading")
+                    if not reading_ref_text:
+                        return (
+                            "[LLM] Error: No reference text selected for reading mode.",
+                            None,
+                        )
 
-                # 3. Send ASR text to the existing Gemini Chat
-                print(f"Sending to LLM (Voice Chat): '{current_asr_text}'")
-                # NOTE: This sends ONLY the ASR text. If story context is needed
-                # similar to the Text Chat, the prepare_user_message_context logic
-                # would need to be adapted and called here.
-                llm_res = CHAT.send_message(message=current_asr_text)
-                llm_response_text = llm_res.text
+                    # Construct prompt for reading feedback
+                    prompt = f"""Please act as a reading coach. The user attempted to read the following text:
+Reference Text: "{reading_ref_text}"
+
+The user's speech was transcribed by ASR as:
+ASR Output: "{current_asr_text}"
+
+Compare the ASR Output to the Reference Text.
+- If the ASR Output perfectly matches the Reference Text, provide brief positive feedback (e.g., "Excellent reading!", "Perfect!").
+- If there are differences, point out the specific words or phrases that were misread or missed. Be concise and helpful.
+- Provide only the feedback, do not include the reference or ASR text in your response.
+"""
+                    print("Sending Reading Feedback Prompt to LLM...")
+                    llm_res = CHAT.send_message(
+                        message=prompt
+                    )  # Use send_message for single turn feedback
+                    llm_response_text = llm_res.text
+                    print(f"LLM Reading Feedback: '{llm_response_text}'")
+
+                else:  # Free Chat mode
+                    print("Mode: Free Chat")
+                    # Use the existing chat history context logic if needed, or just send the ASR text
+                    # For simplicity here, just sending the ASR text directly.
+                    # If context is desired, integrate prepare_user_message_context logic.
+                    print(f"Sending to LLM (Free Chat): '{current_asr_text}'")
+                    llm_res = CHAT.send_message(message=current_asr_text)
+                    llm_response_text = llm_res.text
+                    print(f"LLM Response (Free Chat): '{llm_response_text}'")
+
                 if not llm_response_text:
                     raise ValueError("LLM returned empty response.")
-                print(f"LLM Response (Voice Chat): '{llm_response_text}'")
 
-                # 4. Run TTS on the LLM response using the imported function
-                print(f"Running TTS on: '{llm_response_text}'")
-                # Assumes 'tts' is the correctly modified function imported from ai_storytime.tts
-                tts_path = tts(
-                    path_to_ref_audio=str(ref_audio_path),
-                    gen_text=llm_response_text,
-                    ref_text=transcription,  # Provide reference text for TTS if needed/available
-                    device="cuda"
-                    if torch.cuda.is_available()
-                    else "cpu",  # Pass the correct device literal
-                )
-                if tts_path is None:
-                    print("TTS generation failed.")
-                    llm_response_text += (
-                        "\n[TTS Generation Failed]"  # Append failure notice
+                # 3. Run TTS on the LLM response (feedback or chat reply)
+                if ref_audio_path:  # Only run TTS if reference audio is available
+                    print(f"Running TTS on: '{llm_response_text}'")
+                    tts_path = tts(
+                        path_to_ref_audio=str(ref_audio_path),
+                        gen_text=llm_response_text,
+                        ref_text=transcription,
+                        device="cuda" if torch.cuda.is_available() else "cpu",
                     )
+                    if tts_path is None:
+                        print("TTS generation failed.")
+                        llm_response_text += "\n[TTS Generation Failed]"
+                    else:
+                        print(f"TTS generated successfully: {tts_path}")
                 else:
-                    print(f"TTS generated successfully: {tts_path}")
+                    print("Skipping TTS generation as reference audio is missing.")
 
-            except gr.Error as e:  # Catch Gradio specific errors (like missing API key)
+            except gr.Error as e:
                 print(f"Gradio Error in Voice LLM/TTS: {e}")
                 llm_response_text = f"[Error] {e}"
             except Exception as e:
                 print(f"Error during Voice LLM/TTS processing: {e}")
-                llm_response_text = f"[Error] An unexpected error occurred: {e}"
-                tts_path = None  # Ensure TTS output is cleared on general error
+                import traceback
 
-            # Return LLM text and TTS audio path (or None)
+                traceback.print_exc()
+                llm_response_text = f"[Error] An unexpected error occurred: {e}"
+                tts_path = None
+
             return llm_response_text, tts_path
 
-        # Wire the button click event
+        # --- Update Button Click Wiring ---
         process_button.click(
             fn=run_voice_llm_tts,
-            inputs=[api_key, asr_output_textbox, ref_audio_input],
+            # Add mode and reading text states to inputs
+            inputs=[
+                api_key,
+                asr_output_textbox,
+                voice_mode_radio,  # Pass the mode state
+                reading_page_text_state,  # Pass the reading text state
+                ref_audio_input,
+            ],
             outputs=[llm_output_textbox, tts_audio_output],
         )
 
-        # Clear Button for Voice Chat tab components
-        clear_voice_button = gr.Button("Clear Voice Outputs")
+        # --- Update Clear Button Logic ---
+        clear_voice_button = gr.Button("Clear Voice Outputs & State")
 
-        def clear_voice_outputs():
-            # Reset ASR state, ASR text, LLM text, Ref audio, TTS audio
-            # Keep Ref audio? Maybe not, user might want to reuse. Let's clear TTS audio only.
-            print("Clearing voice chat outputs (ASR text, LLM text, TTS audio).")
-            return None, "", "", None  # State, ASR Text, LLM Text, TTS Audio
+        def clear_voice_outputs_and_state():
+            print("Clearing voice chat outputs and resetting states.")
+            # Reset ASR state, ASR text, LLM text, TTS audio
+            # Also reset mode to default, hide reading page selector, clear reading page state
+            return {
+                asr_state: None,
+                asr_output_textbox: "",
+                llm_output_textbox: "",
+                tts_audio_output: None,
+                voice_mode_radio: "Free Chat",  # Reset mode radio
+                reading_page_row: gr.Row(visible=False),  # Hide reading row
+                reading_page_radio: gr.Radio(value=None),  # Clear reading selection
+                voice_chat_mode_state: "Free Chat",  # Reset mode state
+                reading_page_id_state: None,  # Reset reading page ID state
+                reading_page_text_state: None,  # Reset reading page text state
+            }
 
         clear_voice_button.click(
-            fn=clear_voice_outputs,
+            fn=clear_voice_outputs_and_state,
             inputs=None,
+            # Update outputs to include the components and states being reset
             outputs=[
                 asr_state,
                 asr_output_textbox,
                 llm_output_textbox,
                 tts_audio_output,
+                voice_mode_radio,
+                reading_page_row,
+                reading_page_radio,
+                voice_chat_mode_state,
+                reading_page_id_state,
+                reading_page_text_state,
             ],
         )
 
@@ -671,4 +853,12 @@ with gr.Blocks(
 
 
 if __name__ == "__main__":
-    demo.launch(share=False, debug=False)
+    # Ensure story data is loaded on startup if default exists
+    if not story:
+        print("Attempting to load default story on startup...")
+        load_story_data()
+        # Update radio choices based on loaded data (if Gradio objects are accessible here)
+        # This might be tricky; usually updates happen via handlers after launch.
+        # The initial choices set during UI definition might be sufficient if load_story_data runs before gr.Blocks.
+
+    demo.launch(share=True, debug=False)
