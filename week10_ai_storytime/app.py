@@ -3,8 +3,6 @@ os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 import shutil
 import zipfile
 from pathlib import Path
-import time
-import shutil
 
 import gradio as gr
 import numpy as np
@@ -489,13 +487,13 @@ with gr.Blocks(
         asr_state = gr.State(None)
 
         # UI Layout for Voice Chat
-        with gr.Row():
+        with gr.Row(equal_height=True):
             mic_input = gr.Audio(
                 sources=["microphone"],
                 streaming=True,
-                label="Microphone Input (Streaming)",
+                label="麥克風輸入 (串流)",
             )
-            asr_output_textbox = gr.Textbox(label="ASR Output (Live)")
+            asr_output_textbox = gr.Textbox(label="語音識別結果 (即時)")
 
         # Wire ASR streaming - connects mic input to transcribe_voice function
         mic_input.stream(
@@ -510,21 +508,36 @@ with gr.Blocks(
         with gr.Row():
             with gr.Column(scale=1):
                 ref_audio_input = gr.Audio(
-                    label="Reference Audio for TTS", type="filepath"
+                    label="語音參考音檔", type="filepath"
                 )
-                process_button = gr.Button("Get Feedback & Synthesize")
+                process_button = gr.Button("獲取回饋與生成語音")
             with gr.Column(scale=2):
-                llm_output_textbox = gr.Textbox(label="LLM Feedback")
+                llm_output_textbox = gr.Textbox(label="LLM 模型回饋")
                 tts_audio_output = gr.Audio(
-                    label="Synthesized Speech (TTS Output)", type="filepath"
+                    label="合成語音輸出", type="filepath"
                 )
 
         # --- Define LLM + TTS logic Function ---
         def run_voice_llm_tts(
-            api_key: str, current_asr_text: str, ref_audio_path: str | None
+            api_key: str,
+            current_asr_text: str,
+            ref_audio_path: str | Path | None = TTS_DIR / "voice.wav",
+            transcription: str = "",
         ) -> tuple[str, str | None]:
             llm_response_text = "[LLM] An error occurred."  # Default error message
             tts_path = None  # Default
+            if not ref_audio_path:
+                if TTS_VOICE_PATH.exists():
+                    ref_audio_path = TTS_VOICE_PATH
+                    transcription = _transcription
+
+                else:
+                    print(f"Warning: Default TTS voice file not found: {TTS_VOICE_PATH}")
+                    ref_audio_path = None
+                    transcription = ""
+            # if ref_audio_path and not Path(ref_audio_path).exists():
+            #     ref_audio_path = None
+            #     transcription = ""
             try:
                 # 1. Ensure API key and chat are ready
                 prepare_chat(api_key)  # Pass the API key to the function
@@ -552,9 +565,9 @@ with gr.Blocks(
                 print(f"Running TTS on: '{llm_response_text}'")
                 # Assumes 'tts' is the correctly modified function imported from ai_storytime.tts
                 tts_path = tts(
-                    path_to_ref_audio=ref_audio_path,
+                    path_to_ref_audio=str(ref_audio_path),
                     gen_text=llm_response_text,
-                    ref_text="",  # Provide reference text for TTS if needed/available
+                    ref_text=transcription,  # Provide reference text for TTS if needed/available
                     device="cuda"
                     if torch.cuda.is_available()
                     else "cpu",  # Pass the correct device literal
