@@ -1,3 +1,6 @@
+import os
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
+import shutil
 import zipfile
 from pathlib import Path
 import time
