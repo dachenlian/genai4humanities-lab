@@ -39,7 +39,7 @@ def tts(
         "--output_file",
         output_filename,  # Use unique filename
         "--nfe_step",
-        "64",
+        "16",
         "--device",
         device,
     ]
